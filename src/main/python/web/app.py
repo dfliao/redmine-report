@@ -1,0 +1,241 @@
+#!/usr/bin/env python3
+"""
+Redmine Report Web Application
+
+Web interface for Redmine reporting system with two main reports:
+- Report 1: Original dual-table report (progress statistics + issue list)
+- Report 2: Due date change tracking report
+"""
+
+from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, JSONResponse
+from datetime import datetime, date, timedelta
+from typing import Optional, List
+import logging
+
+from ..services.redmine_service import RedmineService
+from ..services.report_generator import ReportGenerator
+from ..utils.config import get_settings
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize FastAPI app
+app = FastAPI(
+    title="Redmine Reports Dashboard",
+    description="Web interface for Redmine reporting system",
+    version="1.0.0"
+)
+
+# Setup templates and static files
+templates = Jinja2Templates(directory="src/main/resources/templates")
+app.mount("/static", StaticFiles(directory="src/main/resources/static"), name="static")
+
+# Global services
+redmine_service: Optional[RedmineService] = None
+report_generator: Optional[ReportGenerator] = None
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize services on startup"""
+    global redmine_service, report_generator
+    
+    settings = get_settings()
+    redmine_service = RedmineService(settings)
+    report_generator = ReportGenerator(settings)
+    
+    logger.info("Web application started successfully")
+
+@app.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    """Main dashboard page"""
+    try:
+        # Get basic statistics
+        stats = await get_dashboard_stats()
+        
+        return templates.TemplateResponse("dashboard.html", {
+            "request": request,
+            "stats": stats,
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "Redmine 報表系統"
+        })
+    except Exception as e:
+        logger.error(f"Dashboard error: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": str(e),
+            "title": "錯誤"
+        })
+
+@app.get("/report1", response_class=HTMLResponse)
+async def report1_page(request: Request, days: int = 14):
+    """Report 1: Original dual-table report"""
+    try:
+        return templates.TemplateResponse("report1.html", {
+            "request": request,
+            "days": days,
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "報表一 - 議題進度統計"
+        })
+    except Exception as e:
+        logger.error(f"Report 1 page error: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": str(e),
+            "title": "錯誤"
+        })
+
+@app.get("/report2", response_class=HTMLResponse)
+async def report2_page(request: Request, 
+                      status: str = "open",
+                      update_date: str = None):
+    """Report 2: Due date change tracking report"""
+    try:
+        if update_date is None:
+            update_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Get available statuses for dropdown
+        statuses = await get_available_statuses()
+        
+        return templates.TemplateResponse("report2.html", {
+            "request": request,
+            "selected_status": status,
+            "update_date": update_date,
+            "available_statuses": statuses,
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "報表二 - 完成日期異動追蹤"
+        })
+    except Exception as e:
+        logger.error(f"Report 2 page error: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": str(e),
+            "title": "錯誤"
+        })
+
+@app.get("/api/report1/data")
+async def get_report1_data(days: int = 14):
+    """API endpoint for Report 1 data"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        # Get report data
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days)
+        
+        # Table 1: Issue count by assignee and status
+        table1_data = await redmine_service.get_issue_statistics(start_date, end_date)
+        
+        # Table 2: Issue list with details
+        table2_data = await redmine_service.get_issue_list(start_date, end_date)
+        
+        return {
+            "success": True,
+            "data": {
+                "table1": table1_data,
+                "table2": table2_data,
+                "date_range": {
+                    "start": start_date.strftime("%Y-%m-%d"),
+                    "end": end_date.strftime("%Y-%m-%d")
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Report 1 API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/report2/data")
+async def get_report2_data(status: str = "open", 
+                          update_date: str = None):
+    """API endpoint for Report 2 data - Due date change tracking"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        if update_date is None:
+            update_date = datetime.now().strftime("%Y-%m-%d")
+        
+        target_date = datetime.strptime(update_date, "%Y-%m-%d").date()
+        
+        # Get due date change tracking data
+        data = await redmine_service.get_due_date_changes(
+            status_filter=status,
+            update_date=target_date
+        )
+        
+        return {
+            "success": True,
+            "data": data,
+            "filters": {
+                "status": status,
+                "update_date": update_date
+            }
+        }
+    except Exception as e:
+        logger.error(f"Report 2 API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/send-report")
+async def send_report_email(report_type: int = Form(...)):
+    """Send report via email"""
+    try:
+        if not report_generator:
+            raise HTTPException(status_code=500, detail="Report generator not initialized")
+        
+        if report_type == 1:
+            result = await report_generator.generate_and_send_report1()
+        elif report_type == 2:
+            result = await report_generator.generate_and_send_report2()
+        else:
+            raise HTTPException(status_code=400, detail="Invalid report type")
+        
+        return {"success": True, "message": "報表已成功發送", "details": result}
+    
+    except Exception as e:
+        logger.error(f"Send report error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_dashboard_stats():
+    """Get dashboard statistics"""
+    try:
+        if not redmine_service:
+            return {}
+        
+        # Get basic counts
+        total_issues = await redmine_service.get_total_issue_count()
+        open_issues = await redmine_service.get_open_issue_count()
+        today_updates = await redmine_service.get_today_update_count()
+        
+        return {
+            "total_issues": total_issues,
+            "open_issues": open_issues,
+            "today_updates": today_updates,
+            "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    except Exception as e:
+        logger.error(f"Dashboard stats error: {e}")
+        return {}
+
+async def get_available_statuses():
+    """Get available issue statuses"""
+    try:
+        if not redmine_service:
+            return []
+        
+        return await redmine_service.get_issue_statuses()
+    except Exception as e:
+        logger.error(f"Get statuses error: {e}")
+        return []
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy", 
+        "version": "1.0.0",
+        "timestamp": datetime.now().isoformat()
+    }

@@ -37,7 +37,26 @@ redmine-report/
 
 ## 🚀 快速開始
 
-### 1. 使用 Docker Compose (推薦)
+### 1. Synology DS920+ 部署 (推薦)
+
+```bash
+# 1. SSH 登入 DS920+ 並進入現有目錄
+ssh admin@your-ds920-ip
+cd /volume1/ai-stack2
+
+# 2. 下載專案
+git clone https://github.com/dfliao/redmine-report.git
+cd redmine-report
+
+# 3. 設定環境變數
+cp .env.example .env
+nano .env
+
+# 4. 使用 Container Manager 部署
+# (在瀏覽器中開啟 DSM → Container Manager → 建立專案)
+```
+
+### 2. 本地 Docker 測試
 
 ```bash
 # 1. 複製環境變數範本
@@ -53,7 +72,7 @@ docker-compose up -d
 curl http://localhost:8000/health
 ```
 
-### 2. 手動觸發報表生成
+### 3. 手動觸發報表生成
 
 ```bash
 # 透過 API 觸發 (適用於 n8n)
@@ -63,7 +82,7 @@ curl -X POST http://localhost:8000/generate-report
 curl http://localhost:8000/status
 ```
 
-### 3. 本地開發
+### 4. 本地開發
 
 ```bash
 # 安裝相依套件

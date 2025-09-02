@@ -32,28 +32,44 @@
 
 1. **透過 File Station：**
    - 開啟 File Station
-   - 建立資料夾：`ai-stack2/redmine-report`
-   - 路徑：`/volume1/ai-stack2/redmine-report/`
+   - 進入現有的 `ai-stack2` 資料夾
+   - 在其中建立 `redmine-report` 子資料夾
+   - 最終路徑：`/volume1/ai-stack2/redmine-report/`
 
 2. **透過 SSH (進階用戶)：**
 ```bash
 ssh admin@your-ds920-ip
-sudo mkdir -p /volume1/ai-stack2/redmine-report
-cd /volume1/ai-stack2/redmine-report
+# ai-stack2 目錄已存在，直接進入
+cd /volume1/ai-stack2
+# 在現有目錄中建立 redmine-report 子目錄
+mkdir -p redmine-report
+cd redmine-report
 ```
 
 ### 步驟 2: 下載專案檔案
 
 **方法 A: 使用 git (推薦)**
 ```bash
-# SSH 登入 DS920+
+# 進入現有的 ai-stack2 目錄
 cd /volume1/ai-stack2
+# 下載專案 (會自動建立 redmine-report 子目錄)
 git clone https://github.com/dfliao/redmine-report.git
 ```
 
-**方法 B: 手動上傳**
+**方法 B: 手動下載並解壓縮**
+```bash
+# 在 ai-stack2 目錄中下載
+cd /volume1/ai-stack2
+wget https://github.com/dfliao/redmine-report/archive/refs/heads/master.zip
+unzip master.zip
+mv redmine-report-master redmine-report
+rm master.zip
+```
+
+**方法 C: 透過 File Station 上傳**
 1. 在電腦下載：https://github.com/dfliao/redmine-report/archive/refs/heads/master.zip
-2. 解壓縮後透過 File Station 上傳到 `/volume1/ai-stack2/redmine-report/`
+2. 解壓縮後透過 File Station 上傳到現有的 `/volume1/ai-stack2/` 目錄中
+3. 確保最終結構為 `/volume1/ai-stack2/redmine-report/`
 
 ### 步驟 3: 設定環境變數
 

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Redmine 報表系統</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', path='/css/main.css') }}" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'/></svg>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">R</div>
+                    <span>Redmine 報表系統</span>
+                </div>
+                <nav class="nav">
+                    <a href="/" class="nav-link">首頁</a>
+                    <a href="/report1" class="nav-link active">報表一</a>
+                    <a href="/report2" class="nav-link">報表二</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="mb-8">
+                <h1>📊 報表一：議題進度統計</h1>
+                <p class="text-sm">
+                    統計指定天數內的議題進度和詳細清單
+                </p>
+            </div>
+
+            <!-- Controls -->
+            <div class="card mb-6">
+                <div class="card-header">
+                    <h3 class="card-title">篩選條件</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="days-input">統計天數</label>
+                            <select class="form-select" id="days-input" onchange="updateReport()">
+                                <option value="7">7 天</option>
+                                <option value="14" selected>14 天</option>
+                                <option value="30">30 天</option>
+                                <option value="60">60 天</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">操作</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button onclick="refreshReport()" class="btn btn-primary">
+                                    <span class="spinner hidden" id="refresh-spinner"></span>
+                                    重新整理
+                                </button>
+                                <button onclick="exportReport()" class="btn btn-secondary">匯出 Excel</button>
+                                <button onclick="sendReport(1)" class="btn btn-success">發送 Email</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="card mb-6 hidden">
+                <div class="card-body text-center">
+                    <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                    <p>正在載入報表資料...</p>
+                </div>
+            </div>
+
+            <!-- Table 1: Issue Statistics by Assignee and Status -->
+            <div class="card mb-8" id="table1-container">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z"/>
+                            <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z"/>
+                        </svg>
+                        表格一：議題統計（依被分派者和狀態）
+                    </h3>
+                    <div class="card-subtitle">
+                        統計期間：<span id="date-range">{{ days }} 天內</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table" id="statistics-table">
+                            <thead>
+                                <tr>
+                                    <th>被分派者</th>
+                                    <th>擬定中</th>
+                                    <th>執行中</th>
+                                    <th>待審核</th>
+                                    <th>修正中</th>
+                                    <th>已回應</th>
+                                    <th>已完成</th>
+                                    <th>暫停</th>
+                                    <th>取消</th>
+                                    <th>總計</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="10" class="text-center">載入中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table 2: Detailed Issue List -->
+            <div class="card" id="table2-container">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clip-rule="evenodd"/>
+                        </svg>
+                        表格二：詳細議題清單
+                    </h3>
+                    <div class="card-subtitle">
+                        完成日期在指定範圍內的進行中議題
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table" id="issues-table">
+                            <thead>
+                                <tr>
+                                    <th>專案</th>
+                                    <th>追蹤標籤</th>
+                                    <th>狀態</th>
+                                    <th>優先權</th>
+                                    <th>主旨</th>
+                                    <th>被分派者</th>
+                                    <th>完工日期</th>
+                                    <th>開始日期</th>
+                                    <th>更新日期</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="9" class="text-center">載入中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript -->
+    <script>
+        // Global variables
+        let currentData = null;
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshReport();
+        });
+        
+        // Update report based on days selection
+        function updateReport() {
+            refreshReport();
+        }
+        
+        // Refresh report data
+        async function refreshReport() {
+            const daysInput = document.getElementById('days-input');
+            const days = daysInput.value;
+            const loadingState = document.getElementById('loading-state');
+            const spinner = document.getElementById('refresh-spinner');
+            
+            // Show loading state
+            loadingState.classList.remove('hidden');
+            spinner.classList.remove('hidden');
+            
+            try {
+                const response = await fetch(`/api/report1/data?days=${days}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentData = result.data;
+                    updateTable1(result.data.table1);
+                    updateTable2(result.data.table2);
+                    updateDateRange(result.data.date_range);
+                } else {
+                    throw new Error(result.message || '載入失敗');
+                }
+            } catch (error) {
+                alert('❌ 載入報表失敗：' + error.message);
+            } finally {
+                loadingState.classList.add('hidden');
+                spinner.classList.add('hidden');
+            }
+        }
+        
+        // Update statistics table (Table 1)
+        function updateTable1(data) {
+            const tbody = document.querySelector('#statistics-table tbody');
+            const statuses = ['擬定中', '執行中', '待審核', '修正中', '已回應', '已完成', '暫停', '取消'];
+            
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center">無資料</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            data.forEach(row => {
+                const assignee = row.assignee || '未分派';
+                let total = 0;
+                let statusCells = '';
+                
+                statuses.forEach(status => {
+                    const count = row[status] || 0;
+                    total += count;
+                    statusCells += `<td class="text-center">${count}</td>`;
+                });
+                
+                html += `
+                    <tr>
+                        <td class="font-bold">${assignee}</td>
+                        ${statusCells}
+                        <td class="text-center font-bold">${total}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+        
+        // Update issues table (Table 2)
+        function updateTable2(data) {
+            const tbody = document.querySelector('#issues-table tbody');
+            
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center">無資料</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            data.forEach(issue => {
+                const priorityBadge = getPriorityBadge(issue.priority);
+                const statusBadge = getStatusBadge(issue.status);
+                
+                html += `
+                    <tr>
+                        <td class="text-sm">${issue.project || ''}</td>
+                        <td class="text-sm">${issue.tracker || ''}</td>
+                        <td>${statusBadge}</td>
+                        <td>${priorityBadge}</td>
+                        <td class="text-sm" style="max-width: 300px; word-wrap: break-word;">${issue.subject || ''}</td>
+                        <td class="text-sm">${issue.assigned_to || '未分派'}</td>
+                        <td class="text-sm font-mono">${issue.due_date || ''}</td>
+                        <td class="text-sm font-mono">${issue.start_date || ''}</td>
+                        <td class="text-sm font-mono">${issue.updated_on || ''}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+        
+        // Update date range display
+        function updateDateRange(dateRange) {
+            const element = document.getElementById('date-range');
+            if (dateRange && element) {
+                element.textContent = `${dateRange.start} 至 ${dateRange.end}`;
+            }
+        }
+        
+        // Get priority badge HTML
+        function getPriorityBadge(priority) {
+            const badgeClass = {
+                '最高': 'badge-error',
+                '高': 'badge-warning',
+                '一般': 'badge-secondary',
+                '低': 'badge-secondary'
+            }[priority] || 'badge-secondary';
+            
+            return `<span class="badge ${badgeClass}">${priority || ''}</span>`;
+        }
+        
+        // Get status badge HTML
+        function getStatusBadge(status) {
+            const badgeClass = {
+                '擬定中': 'badge-secondary',
+                '執行中': 'badge-primary',
+                '待審核': 'badge-warning',
+                '修正中': 'badge-warning',
+                '已回應': 'badge-info',
+                '已完成': 'badge-success',
+                '暫停': 'badge-secondary',
+                '取消': 'badge-error'
+            }[status] || 'badge-secondary';
+            
+            return `<span class="badge ${badgeClass}">${status || ''}</span>`;
+        }
+        
+        // Export report to Excel
+        async function exportReport() {
+            if (!currentData) {
+                alert('請先載入報表資料');
+                return;
+            }
+            
+            try {
+                // TODO: Implement Excel export functionality
+                alert('Excel 匯出功能開發中...');
+            } catch (error) {
+                alert('❌ 匯出失敗：' + error.message);
+            }
+        }
+        
+        // Send report via email
+        async function sendReport(reportType) {
+            try {
+                const response = await fetch('/api/send-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `report_type=${reportType}`
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ 報表已成功發送！');
+                } else {
+                    alert('❌ 發送失敗：' + result.message);
+                }
+            } catch (error) {
+                alert('❌ 發送失敗：' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

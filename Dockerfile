@@ -46,12 +46,12 @@ USER redmine
 # Create output directory with proper permissions
 RUN mkdir -p /app/output
 
-# Expose port for API access (n8n integration)
-EXPOSE 8000
+# Expose port for web interface and API access
+EXPOSE 3003
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+  CMD python -c "import requests; requests.get('http://localhost:3003/health')" || exit 1
 
 # Default command
 CMD ["python", "-m", "src.main.python.core.main"]

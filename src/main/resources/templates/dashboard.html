@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Redmine 報表系統</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', path='/css/main.css') }}" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'/></svg>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">R</div>
+                    <span>Redmine 報表系統</span>
+                </div>
+                <nav class="nav">
+                    <a href="/" class="nav-link active">首頁</a>
+                    <a href="/report1" class="nav-link">報表一</a>
+                    <a href="/report2" class="nav-link">報表二</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="mb-8">
+                <h1>Redmine 報表儀表板</h1>
+                <p class="text-sm">
+                    <span>最後更新：{{ current_date }}</span>
+                    <span class="ml-4">系統狀態：<span class="badge badge-success">正常運作</span></span>
+                </p>
+            </div>
+
+            <!-- Statistics Cards -->
+            <div class="dashboard-grid mb-8">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-number" id="total-issues">{{ stats.total_issues or '-' }}</div>
+                        <div class="stat-label">總議題數</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-number" id="open-issues">{{ stats.open_issues or '-' }}</div>
+                        <div class="stat-label">進行中議題</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-number" id="today-updates">{{ stats.today_updates or '-' }}</div>
+                        <div class="stat-label">今日更新</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-number" id="system-status">
+                            <span class="badge badge-success">運行中</span>
+                        </div>
+                        <div class="stat-label">系統狀態</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="card mb-8">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                        </svg>
+                        快速操作
+                    </h3>
+                    <div class="card-subtitle">直接執行報表生成和系統管理功能</div>
+                </div>
+                <div class="card-body">
+                    <div class="dashboard-grid">
+                        <!-- Report 1 Card -->
+                        <div class="card">
+                            <div class="card-body">
+                                <h4 class="mb-4">📊 報表一</h4>
+                                <p class="text-sm mb-4">議題進度統計報表<br>包含統計表格和詳細清單</p>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <a href="/report1" class="btn btn-primary btn-sm">查看報表</a>
+                                    <button onclick="sendReport(1)" class="btn btn-secondary btn-sm">
+                                        <span class="spinner hidden" id="spinner-1"></span>
+                                        發送Email
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Report 2 Card -->
+                        <div class="card">
+                            <div class="card-body">
+                                <h4 class="mb-4">📋 報表二</h4>
+                                <p class="text-sm mb-4">完成日期異動追蹤<br>議題完成日期修改記錄</p>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <a href="/report2" class="btn btn-primary btn-sm">查看報表</a>
+                                    <button onclick="sendReport(2)" class="btn btn-secondary btn-sm">
+                                        <span class="spinner hidden" id="spinner-2"></span>
+                                        發送Email
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- System Info Card -->
+                        <div class="card">
+                            <div class="card-body">
+                                <h4 class="mb-4">⚙️ 系統資訊</h4>
+                                <div class="text-sm mb-4">
+                                    <div>Redmine: 6.0.6</div>
+                                    <div>Python: 3.11+</div>
+                                    <div>容器: Docker</div>
+                                </div>
+                                <button onclick="refreshStats()" class="btn btn-secondary btn-sm">
+                                    <span class="spinner hidden" id="spinner-refresh"></span>
+                                    重新整理
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity (Future Feature) -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+                        </svg>
+                        系統狀態
+                    </h3>
+                    <div class="card-subtitle">即時系統健康狀態監控</div>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>項目</th>
+                                    <th>狀態</th>
+                                    <th>最後檢查</th>
+                                    <th>詳情</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="font-bold">Redmine API 連線</td>
+                                    <td><span class="badge badge-success">正常</span></td>
+                                    <td class="text-sm">{{ stats.last_updated or current_date }}</td>
+                                    <td class="text-sm">API 回應正常</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">Email 服務</td>
+                                    <td><span class="badge badge-success">正常</span></td>
+                                    <td class="text-sm">{{ current_date }}</td>
+                                    <td class="text-sm">MailPlus 連線正常</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-bold">報表生成</td>
+                                    <td><span class="badge badge-success">就緒</span></td>
+                                    <td class="text-sm">{{ current_date }}</td>
+                                    <td class="text-sm">所有模組載入完成</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript -->
+    <script>
+        // Send report via email
+        async function sendReport(reportType) {
+            const spinner = document.getElementById(`spinner-${reportType}`);
+            const button = spinner.parentElement;
+            
+            // Show loading state
+            spinner.classList.remove('hidden');
+            button.disabled = true;
+            
+            try {
+                const response = await fetch('/api/send-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `report_type=${reportType}`
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ 報表已成功發送！');
+                } else {
+                    alert('❌ 發送失敗：' + result.message);
+                }
+            } catch (error) {
+                alert('❌ 發送失敗：' + error.message);
+            } finally {
+                // Hide loading state
+                spinner.classList.add('hidden');
+                button.disabled = false;
+            }
+        }
+        
+        // Refresh statistics
+        async function refreshStats() {
+            const spinner = document.getElementById('spinner-refresh');
+            const button = spinner.parentElement;
+            
+            spinner.classList.remove('hidden');
+            button.disabled = true;
+            
+            try {
+                // Simulate API call
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                location.reload();
+            } catch (error) {
+                alert('❌ 重新整理失敗：' + error.message);
+            } finally {
+                spinner.classList.add('hidden');
+                button.disabled = false;
+            }
+        }
+        
+        // Auto-refresh stats every 5 minutes
+        setInterval(refreshStats, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

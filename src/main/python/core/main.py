@@ -3,46 +3,43 @@
 Redmine Report Generator - Main Entry Point
 
 This module provides the main entry point for the Redmine report generation system.
-Supports both standalone execution and API server mode for n8n integration.
+Supports web interface, API endpoints, and standalone execution.
 """
 
 import asyncio
 import logging
+import sys
 from typing import Optional
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from ..services.report_generator import ReportGenerator
+# Add the web app to the main app
+from ..web.app import app as web_app
+from ..services.report_generator import ReportGenerator  
 from ..services.email_service import EmailService
 from ..services.scheduler_service import SchedulerService
-from ..utils.config import get_settings
-from ..utils.logger import setup_logger
-
+from ..utils.config import get_settings, validate_config
 
 class ReportRequest(BaseModel):
     """Request model for manual report generation"""
     force: bool = False
     email_override: Optional[str] = None
 
-
 class HealthResponse(BaseModel):
     """Health check response model"""
     status: str
     version: str
 
-
-# Initialize FastAPI app for n8n integration
-app = FastAPI(
-    title="Redmine Report Generator",
-    description="Automated Redmine reporting system with email delivery",
-    version="1.0.0",
-)
+# Use the web app as the main app
+app = web_app
 
 # Global services
 report_generator: Optional[ReportGenerator] = None
-email_service: Optional[EmailService] = None
+email_service: Optional[EmailService] = None  
 scheduler_service: Optional[SchedulerService] = None
 logger: Optional[logging.Logger] = None
 
@@ -157,21 +154,26 @@ async def run_standalone():
 
 def main():
     """Main entry point"""
-    import sys
-    
-    settings = get_settings()
-    
-    if len(sys.argv) > 1 and sys.argv[1] == "--standalone":
-        # Run once and exit (useful for cron jobs)
-        asyncio.run(run_standalone())
-    else:
-        # Run as API server (default for containers)
-        uvicorn.run(
-            "src.main.python.core.main:app",
-            host="0.0.0.0",
-            port=8000,
-            log_level="info"
-        )
+    try:
+        # Validate configuration
+        validate_config()
+        settings = get_settings()
+        
+        if len(sys.argv) > 1 and sys.argv[1] == "--standalone":
+            # Run once and exit (useful for cron jobs)
+            asyncio.run(run_standalone())
+        else:
+            # Run as web server with API (default for containers)
+            uvicorn.run(
+                "src.main.python.core.main:app",
+                host=settings.API_HOST,
+                port=settings.API_PORT,
+                log_level=settings.LOG_LEVEL.lower(),
+                reload=settings.DEBUG
+            )
+    except Exception as e:
+        print(f"❌ 啟動失敗: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

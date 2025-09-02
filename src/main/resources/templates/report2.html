@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Redmine 報表系統</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', path='/css/main.css') }}" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'/></svg>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">R</div>
+                    <span>Redmine 報表系統</span>
+                </div>
+                <nav class="nav">
+                    <a href="/" class="nav-link">首頁</a>
+                    <a href="/report1" class="nav-link">報表一</a>
+                    <a href="/report2" class="nav-link active">報表二</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="mb-8">
+                <h1>📋 報表二：完成日期異動追蹤</h1>
+                <p class="text-sm">
+                    追蹤指定日期內議題完成日期的修改記錄，包含修改前後的日期對比和調整天數
+                </p>
+            </div>
+
+            <!-- Controls -->
+            <div class="card mb-6">
+                <div class="card-header">
+                    <h3 class="card-title">篩選條件</h3>
+                    <div class="card-subtitle">設定要查詢的條件參數</div>
+                </div>
+                <div class="card-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label" for="status-select">議題狀態</label>
+                            <select class="form-select" id="status-select">
+                                <option value="open" {{ 'selected' if selected_status == 'open' else '' }}>未結案議題</option>
+                                <option value="*" {{ 'selected' if selected_status == '*' else '' }}>所有狀態</option>
+                                {% for status in available_statuses %}
+                                <option value="{{ status.id }}" {{ 'selected' if selected_status == status.id|string else '' }}>
+                                    {{ status.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="date-input">更新日期</label>
+                            <input type="date" class="form-input" id="date-input" value="{{ update_date }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">操作</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button onclick="refreshReport()" class="btn btn-primary">
+                                    <span class="spinner hidden" id="refresh-spinner"></span>
+                                    查詢
+                                </button>
+                                <button onclick="exportReport()" class="btn btn-secondary">匯出 Excel</button>
+                                <button onclick="sendReport(2)" class="btn btn-success">發送 Email</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="card mb-6 hidden">
+                <div class="card-body text-center">
+                    <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                    <p>正在查詢完成日期異動記錄...</p>
+                </div>
+            </div>
+
+            <!-- Results Summary -->
+            <div class="card mb-6" id="summary-container" style="display: none;">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+                            <path fill-rule="evenodd" d="M4 5a2 2 0 012-2v1a1 1 0 00-1 1v6a1 1 0 001 1v1a2 2 0 01-2-2V5zM15 5a2 2 0 00-2-2v1a1 1 0 011 1v6a1 1 0 01-1 1v1a2 2 0 002-2V5z" clip-rule="evenodd"/>
+                            <path d="M8 8a1 1 0 000 2h4a1 1 0 100-2H8z"/>
+                        </svg>
+                        查詢結果摘要
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="dashboard-grid">
+                        <div class="stat-card">
+                            <div class="stat-number" id="total-changes">0</div>
+                            <div class="stat-label">異動記錄</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="unique-issues">0</div>
+                            <div class="stat-label">涉及議題</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="unique-users">0</div>
+                            <div class="stat-label">修改人員</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number" id="date-filter">-</div>
+                            <div class="stat-label">查詢日期</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Due Date Changes Table -->
+            <div class="card" id="changes-container">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+                        </svg>
+                        完成日期異動記錄
+                    </h3>
+                    <div class="card-subtitle">
+                        依專案、優先權、修改者、被分派者排序
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table" id="changes-table">
+                            <thead>
+                                <tr>
+                                    <th>專案名稱</th>
+                                    <th>優先權</th>
+                                    <th>議題名稱</th>
+                                    <th>修改者</th>
+                                    <th>被分派者</th>
+                                    <th>修改後完成日期</th>
+                                    <th>修改前完成日期</th>
+                                    <th>調整天數</th>
+                                    <th>異動時間</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td colspan="9" class="text-center">請選擇查詢條件並點擊「查詢」按鈕</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript -->
+    <script>
+        // Global variables
+        let currentData = null;
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Auto-load if parameters are provided
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('status') || urlParams.get('update_date')) {
+                refreshReport();
+            }
+        });
+        
+        // Refresh report data
+        async function refreshReport() {
+            const statusSelect = document.getElementById('status-select');
+            const dateInput = document.getElementById('date-input');
+            const loadingState = document.getElementById('loading-state');
+            const spinner = document.getElementById('refresh-spinner');
+            const summaryContainer = document.getElementById('summary-container');
+            
+            const status = statusSelect.value;
+            const updateDate = dateInput.value;
+            
+            if (!updateDate) {
+                alert('請選擇更新日期');
+                return;
+            }
+            
+            // Show loading state
+            loadingState.classList.remove('hidden');
+            spinner.classList.remove('hidden');
+            summaryContainer.style.display = 'none';
+            
+            try {
+                const response = await fetch(`/api/report2/data?status=${status}&update_date=${updateDate}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentData = result.data;
+                    updateChangesTable(result.data);
+                    updateSummary(result.data, result.filters);
+                    summaryContainer.style.display = 'block';
+                } else {
+                    throw new Error(result.message || '載入失敗');
+                }
+            } catch (error) {
+                alert('❌ 載入報表失敗：' + error.message);
+            } finally {
+                loadingState.classList.add('hidden');
+                spinner.classList.add('hidden');
+            }
+        }
+        
+        // Update changes table
+        function updateChangesTable(data) {
+            const tbody = document.querySelector('#changes-table tbody');
+            
+            if (!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center">查詢日期內無完成日期異動記錄</td></tr>';
+                return;
+            }
+            
+            let html = '';
+            data.forEach(change => {
+                const priorityBadge = getPriorityBadge(change.priority);
+                const daysAdjustment = getDaysAdjustmentBadge(change.days_adjustment);
+                
+                html += `
+                    <tr>
+                        <td class="text-sm">${change.project || ''}</td>
+                        <td>${priorityBadge}</td>
+                        <td class="text-sm" style="max-width: 300px; word-wrap: break-word;">
+                            ${change.subject || ''}
+                        </td>
+                        <td class="text-sm font-bold">${change.modifier || ''}</td>
+                        <td class="text-sm">${change.assigned_to || '未分派'}</td>
+                        <td class="text-sm font-mono">${change.new_due_date || ''}</td>
+                        <td class="text-sm font-mono">${change.old_due_date || ''}</td>
+                        <td>${daysAdjustment}</td>
+                        <td class="text-sm font-mono">${change.change_date || ''}</td>
+                    </tr>
+                `;
+            });
+            
+            tbody.innerHTML = html;
+        }
+        
+        // Update summary statistics
+        function updateSummary(data, filters) {
+            const totalChanges = data.length;
+            const uniqueIssues = new Set(data.map(item => item.subject)).size;
+            const uniqueUsers = new Set(data.map(item => item.modifier)).size;
+            
+            document.getElementById('total-changes').textContent = totalChanges;
+            document.getElementById('unique-issues').textContent = uniqueIssues;
+            document.getElementById('unique-users').textContent = uniqueUsers;
+            document.getElementById('date-filter').textContent = filters.update_date;
+        }
+        
+        // Get priority badge HTML
+        function getPriorityBadge(priority) {
+            const badgeClass = {
+                '最高': 'badge-error',
+                '高': 'badge-warning',
+                '一般': 'badge-secondary',
+                '低': 'badge-secondary'
+            }[priority] || 'badge-secondary';
+            
+            return `<span class="badge ${badgeClass}">${priority || ''}</span>`;
+        }
+        
+        // Get days adjustment badge HTML
+        function getDaysAdjustmentBadge(daysAdjustment) {
+            if (!daysAdjustment || daysAdjustment === 'N/A') {
+                return '<span class="badge badge-secondary">N/A</span>';
+            }
+            
+            const days = parseInt(daysAdjustment.replace(/[^\d-]/g, ''));
+            let badgeClass = 'badge-secondary';
+            
+            if (days > 0) {
+                badgeClass = 'badge-warning'; // 延期
+            } else if (days < 0) {
+                badgeClass = 'badge-success'; // 提前
+            }
+            
+            return `<span class="badge ${badgeClass}">${daysAdjustment}</span>`;
+        }
+        
+        // Export report to Excel
+        async function exportReport() {
+            if (!currentData || currentData.length === 0) {
+                alert('請先查詢資料');
+                return;
+            }
+            
+            try {
+                // TODO: Implement Excel export functionality
+                alert('Excel 匯出功能開發中...');
+            } catch (error) {
+                alert('❌ 匯出失敗：' + error.message);
+            }
+        }
+        
+        // Send report via email
+        async function sendReport(reportType) {
+            if (!currentData || currentData.length === 0) {
+                alert('請先查詢資料');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/send-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: `report_type=${reportType}`
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✅ 報表已成功發送！');
+                } else {
+                    alert('❌ 發送失敗：' + result.message);
+                }
+            } catch (error) {
+                alert('❌ 發送失敗：' + error.message);
+            }
+        }
+        
+        // Add keyboard shortcut for quick search
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'Enter') {
+                refreshReport();
+            }
+        });
+    </script>
+</body>
+</html>

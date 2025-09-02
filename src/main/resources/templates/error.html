@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Redmine 報表系統</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', path='/css/main.css') }}" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23ef4444'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z'/></svg>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">R</div>
+                    <span>Redmine 報表系統</span>
+                </div>
+                <nav class="nav">
+                    <a href="/" class="nav-link">首頁</a>
+                    <a href="/report1" class="nav-link">報表一</a>
+                    <a href="/report2" class="nav-link">報表二</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <div class="text-center mb-8">
+                <!-- Error Icon -->
+                <div style="display: flex; justify-content: center; margin-bottom: 2rem;">
+                    <svg width="80" height="80" fill="#ef4444" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                    </svg>
+                </div>
+                
+                <h1 class="mb-4">系統錯誤</h1>
+                <p class="text-sm mb-8">很抱歉，系統遇到了一些問題</p>
+            </div>
+
+            <!-- Error Details Card -->
+            <div class="card mb-8" style="max-width: 600px; margin: 0 auto;">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                        </svg>
+                        錯誤詳情
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <strong>錯誤訊息：</strong>
+                        <div class="mt-2 p-3" style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 0.5rem;">
+                            <code style="color: #dc2626; font-size: 0.875rem;">{{ error or '未知錯誤' }}</code>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-6">
+                        <strong>發生時間：</strong>
+                        <span id="error-time"></span>
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                        <a href="/" class="btn btn-primary">回到首頁</a>
+                        <button onclick="window.history.back()" class="btn btn-secondary">返回上頁</button>
+                        <button onclick="window.location.reload()" class="btn btn-secondary">重新載入</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Troubleshooting Tips -->
+            <div class="card" style="max-width: 800px; margin: 0 auto;">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/>
+                        </svg>
+                        故障排除建議
+                    </h3>
+                </div>
+                <div class="card-body">
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>可能原因</th>
+                                    <th>解決方案</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="text-sm">Redmine API 連線失敗</td>
+                                    <td class="text-sm">
+                                        檢查 Redmine 伺服器狀態和 API 金鑰設定
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-sm">Email 服務問題</td>
+                                    <td class="text-sm">
+                                        確認 MailPlus 設定和網路連線
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-sm">權限不足</td>
+                                    <td class="text-sm">
+                                        檢查 Redmine 用戶權限設定
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td class="text-sm">系統資源不足</td>
+                                    <td class="text-sm">
+                                        重啟容器服務或檢查記憶體使用情況
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer text-center">
+                    <p class="text-sm mb-0">
+                        如果問題持續發生，請檢查系統日誌或聯繫系統管理員
+                    </p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript -->
+    <script>
+        // Set error time
+        document.getElementById('error-time').textContent = new Date().toLocaleString('zh-TW');
+        
+        // Auto-refresh page after 30 seconds (optional)
+        let autoRefreshTimeout;
+        
+        function startAutoRefresh() {
+            autoRefreshTimeout = setTimeout(() => {
+                if (confirm('系統將自動重新載入頁面，是否繼續？')) {
+                    window.location.reload();
+                }
+            }, 30000);
+        }
+        
+        function stopAutoRefresh() {
+            if (autoRefreshTimeout) {
+                clearTimeout(autoRefreshTimeout);
+            }
+        }
+        
+        // Start auto-refresh timer
+        startAutoRefresh();
+        
+        // Stop auto-refresh if user interacts with page
+        document.addEventListener('click', stopAutoRefresh);
+        document.addEventListener('keypress', stopAutoRefresh);
+    </script>
+</body>
+</html>
