@@ -11,7 +11,11 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Any, Optional
 from redminelib import Redmine
-from redminelib.exceptions import RedmineError
+try:
+    from redminelib.exceptions import RedmineError
+except ImportError:
+    # Newer versions use different exception names
+    from redminelib.exceptions import BaseRedmineError as RedmineError
 
 logger = logging.getLogger(__name__)
 
