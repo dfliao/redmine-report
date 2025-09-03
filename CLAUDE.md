@@ -97,29 +97,58 @@ redmine-report/
 ├── src/                   # Source code (NEVER put files in root)
 │   ├── main/              # Main application code
 │   │   ├── python/        # Python source code
-│   │   │   ├── core/      # Core business logic
-│   │   │   ├── utils/     # Utility functions/classes
-│   │   │   ├── models/    # Data models/entities
-│   │   │   ├── services/  # Service layer (Redmine API, Email)
-│   │   │   └── api/       # API endpoints/interfaces
+│   │   │   ├── core/      # Core business logic & main entry point
+│   │   │   │   └── main.py     # Main application entry point
+│   │   │   ├── web/       # Web interface and API endpoints
+│   │   │   │   └── app.py      # FastAPI web application
+│   │   │   ├── services/  # Service layer implementations
+│   │   │   │   ├── redmine_service.py    # Redmine API client
+│   │   │   │   ├── email_service.py      # Email functionality
+│   │   │   │   ├── report_generator.py   # Report generation logic
+│   │   │   │   └── scheduler_service.py  # Task scheduling
+│   │   │   └── utils/     # Utility functions/classes
+│   │   │       └── config.py    # Configuration management
 │   │   └── resources/     # Non-code resources
-│   │       ├── config/    # Configuration files
-│   │       └── assets/    # Static assets
+│   │       ├── templates/ # Jinja2 HTML templates (web UI)
+│   │       ├── static/    # CSS/JS/images for web UI
+│   │       └── config/    # Configuration files
 │   └── test/              # Test code
 │       ├── unit/          # Unit tests
 │       └── integration/   # Integration tests
-├── docs/                  # Documentation
-│   ├── api/               # API documentation
-│   ├── user/              # User guides
-│   └── dev/               # Developer documentation
-├── tools/                 # Development tools and scripts
-├── examples/              # Usage examples
-└── output/                # Generated output files
+└── output/                # Generated report output files
 ```
+
+## 🏛️ APPLICATION ARCHITECTURE
+
+### Dual-Mode Operation
+The application operates in two modes:
+1. **Web Mode** (default): FastAPI web server with UI and API endpoints on port 3003
+2. **Standalone Mode**: One-shot report generation via `--standalone` flag
+
+### Core Services Architecture
+- **RedmineService**: Handles all Redmine API interactions
+- **EmailService**: SMTP email functionality with async support  
+- **ReportGenerator**: Orchestrates report generation and email sending
+- **SchedulerService**: Manages scheduled report generation using APScheduler
+
+### Web Application Features
+- **Dashboard**: Main overview page with statistics
+- **Report 1**: Original dual-table report (issue statistics + issue list)  
+- **Report 2**: Due date change tracking report
+- **API Endpoints**: RESTful endpoints for programmatic access
+
+### Key Technologies
+- **FastAPI**: Web framework with automatic OpenAPI documentation
+- **Jinja2**: HTML template engine for web UI
+- **python-redmine**: Redmine API client library
+- **APScheduler**: Cron-style task scheduling
+- **aiosmtplib**: Async SMTP email client
+- **Pydantic**: Data validation and settings management
 
 ### 🎯 **DEVELOPMENT STATUS**
 - **Setup**: ✅ Complete
-- **Core Features**: 🔄 In Development
+- **Core Features**: ✅ Complete (dual report system with web UI)
+- **Container Deployment**: ✅ Complete (Docker + Synology)
 - **Testing**: ⏳ Pending
 - **Documentation**: ⏳ Pending
 
@@ -135,23 +164,82 @@ Before starting ANY task, verify:
 ## 🚀 COMMON COMMANDS
 
 ```bash
-# Development
+# Development - Run web application (main mode)
 python -m src.main.python.core.main
+
+# Development - Run standalone report generation (one-shot)
+python -m src.main.python.core.main --standalone
+
+# Testing
 python -m pytest src/test/
+
+# Install dependencies
 pip install -r requirements.txt
+
+# Code formatting and linting
+black src/
+isort src/
+mypy src/
 
 # Docker Container
 docker build -t redmine-report .
-docker run -d --name redmine-report redmine-report
+docker run -d --name redmine-report -p 3003:3003 redmine-report
 docker-compose up -d
 
-# Synology Container Manager
-# Use docker-compose.yml for deployment
+# n8n Integration - API endpoints run on port 3003 (not 8000)
+curl -X POST http://localhost:3003/generate-report
+curl http://localhost:3003/health
+curl http://localhost:3003/status
 
-# n8n Integration
-# Use HTTP Request node to trigger report generation
-curl -X POST http://localhost:8000/generate-report
+# Web Interface Access
+# Dashboard: http://localhost:3003/
+# Report 1: http://localhost:3003/report1
+# Report 2: http://localhost:3003/report2
 ```
+
+## ⚙️ CONFIGURATION AND ENVIRONMENT
+
+### Required Environment Variables
+```bash
+# Redmine Configuration
+REDMINE_URL=http://your-redmine.com
+REDMINE_API_KEY=your_api_key
+
+# Email Configuration  
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=your_email@domain.com
+SMTP_PASSWORD=your_app_password
+EMAIL_FROM=reports@company.com
+
+# Report Settings
+REPORT_DAYS=14
+TIMEZONE=Asia/Taipei
+
+# Scheduling (cron format)
+SCHEDULE_CRON=0 8 * * 1  # Every Monday at 8:00 AM
+
+# Optional: Redis for caching/session storage
+REDIS_URL=redis://redis:6379
+```
+
+### Configuration Management
+- Uses **pydantic-settings** for environment variable management
+- Configuration validation occurs at startup
+- Settings loaded from `.env` file or environment variables
+- All settings accessible via `get_settings()` function
+
+## 🚨 KNOWN ISSUES TO FIX
+
+### Missing Logger Setup Function
+- `src/main/python/core/main.py:52` references `setup_logger()` function that doesn't exist
+- This function needs to be implemented in `src/main/python/utils/` 
+- Should return a configured Python logger with proper formatting
+
+### Testing Infrastructure
+- Test directory structure exists but no test files implemented
+- Need unit tests for all service classes
+- Integration tests for API endpoints required
 
 ## 🚨 TECHNICAL DEBT PREVENTION
 
