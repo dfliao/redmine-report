@@ -45,27 +45,38 @@ class RedmineService:
                 include=['journals']
             )
             
-            # Process statistics by assignee and status
+            # Process statistics by role, assignee and status
             stats = {}
             
             for issue in issues:
                 assignee = issue.assigned_to.name if hasattr(issue, 'assigned_to') else '未分派'
                 status = issue.status.name if hasattr(issue, 'status') else '未知狀態'
                 
-                if assignee not in stats:
-                    stats[assignee] = {}
+                # Get user role/group - for now use a simple mapping or custom field
+                # This can be enhanced to get actual Redmine user groups/roles
+                role = self._get_user_role(issue.assigned_to if hasattr(issue, 'assigned_to') else None)
                 
-                if status not in stats[assignee]:
-                    stats[assignee][status] = 0
+                key = (role, assignee)
+                if key not in stats:
+                    stats[key] = {}
                 
-                stats[assignee][status] += 1
+                if status not in stats[key]:
+                    stats[key][status] = 0
+                
+                stats[key][status] += 1
             
             # Convert to list format for frontend
             result = []
-            for assignee, statuses in stats.items():
-                row = {'assignee': assignee}
+            for (role, assignee), statuses in stats.items():
+                row = {
+                    'role': role,
+                    'assignee': assignee
+                }
                 row.update(statuses)
                 result.append(row)
+            
+            # Sort by role, then by assignee
+            result.sort(key=lambda x: (x['role'], x['assignee']))
             
             logger.info(f"Retrieved statistics for {len(result)} assignees")
             return result
@@ -94,16 +105,25 @@ class RedmineService:
             result = []
             for issue in issues:
                 result.append({
-                    'tracker': issue.tracker.name if hasattr(issue, 'tracker') else '',
-                    'status': issue.status.name if hasattr(issue, 'status') else '',
+                    'project': issue.project.name if hasattr(issue, 'project') else '',
                     'priority': issue.priority.name if hasattr(issue, 'priority') else '',
-                    'subject': issue.subject,
+                    'tracker': issue.tracker.name if hasattr(issue, 'tracker') else '',
                     'assigned_to': issue.assigned_to.name if hasattr(issue, 'assigned_to') else '未分派',
+                    'status': issue.status.name if hasattr(issue, 'status') else '',
+                    'subject': issue.subject,
                     'due_date': issue.due_date.strftime('%Y-%m-%d') if hasattr(issue, 'due_date') and issue.due_date else '',
                     'start_date': issue.start_date.strftime('%Y-%m-%d') if hasattr(issue, 'start_date') and issue.start_date else '',
-                    'updated_on': issue.updated_on.strftime('%Y-%m-%d %H:%M') if hasattr(issue, 'updated_on') else '',
-                    'project': issue.project.name if hasattr(issue, 'project') else ''
+                    'updated_on': issue.updated_on.strftime('%Y-%m-%d %H:%M') if hasattr(issue, 'updated_on') else ''
                 })
+            
+            # Sort by project, priority, tracker, assigned_to, status
+            result.sort(key=lambda x: (
+                x['project'], 
+                x['priority'], 
+                x['tracker'], 
+                x['assigned_to'], 
+                x['status']
+            ))
             
             logger.info(f"Retrieved {len(result)} issues for detailed list")
             return result
@@ -157,13 +177,24 @@ class RedmineService:
                             'change_date': change['change_date']
                         })
             
-            # Sort by project, priority, modifier, assigned_to
-            result.sort(key=lambda x: (
-                x['project'], 
-                x['priority'], 
-                x['modifier'], 
-                x['assigned_to']
-            ))
+            # Sort by project, adjustment days desc, priority, assigned_to
+            def sort_key(x):
+                # Extract numeric value from days_adjustment for proper sorting
+                days_str = x['days_adjustment']
+                if days_str == "N/A":
+                    days_num = 0  # Treat N/A as 0 for sorting
+                else:
+                    # Extract number from "+5天" or "-3天" format
+                    days_num = int(days_str.replace('天', '').replace('+', ''))
+                
+                return (
+                    x['project'],
+                    -days_num,  # Negative for descending order
+                    x['priority'],
+                    x['assigned_to']
+                )
+            
+            result.sort(key=sort_key)
             
             logger.info(f"Found {len(result)} due date changes on {date_str}")
             return result
@@ -215,6 +246,38 @@ class RedmineService:
                         })
         
         return changes
+    
+    def _get_user_role(self, user) -> str:
+        """
+        Get user role/group name
+        For now, use a simple mapping based on user name or can be enhanced
+        to fetch actual Redmine user groups/roles via API
+        """
+        if not user:
+            return '未分派'
+        
+        try:
+            # Try to get user groups if available
+            if hasattr(user, 'groups'):
+                # If user has groups, return the first group name
+                if user.groups:
+                    return user.groups[0].name if hasattr(user.groups[0], 'name') else '一般使用者'
+            
+            # Simple role mapping based on user name patterns (can be customized)
+            username = user.name if hasattr(user, 'name') else str(user)
+            
+            # You can customize these role mappings based on your organization
+            if 'manager' in username.lower() or '經理' in username or '主管' in username:
+                return '管理階層'
+            elif 'engineer' in username.lower() or '工程師' in username:
+                return '工程師'
+            elif 'admin' in username.lower() or '管理員' in username:
+                return '系統管理員'
+            else:
+                return '一般使用者'
+                
+        except Exception:
+            return '一般使用者'
     
     def _calculate_days_adjustment(self, old_date_str: str, new_date_str: str) -> str:
         """Calculate the number of days adjustment between old and new due dates"""
