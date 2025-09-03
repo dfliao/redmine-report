@@ -45,7 +45,12 @@ async def startup_event():
     
     settings = get_settings()
     redmine_service = RedmineService(settings)
-    report_generator = ReportGenerator(settings)
+    
+    # Import services here to avoid circular imports
+    from ..services.email_service import EmailService
+    email_service = EmailService(settings)
+    
+    report_generator = ReportGenerator(settings, redmine_service, email_service)
     
     logger.info("Web application started successfully")
 
@@ -179,21 +184,45 @@ async def get_report2_data(status: str = "open",
         logger.error(f"Report 2 API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/users")
+async def get_users():
+    """Get list of users for recipient selection"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        users = await redmine_service.get_users()
+        return {
+            "success": True,
+            "data": users
+        }
+    except Exception as e:
+        logger.error(f"Get users API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/send-report")
-async def send_report_email(report_type: int = Form(...)):
-    """Send report via email"""
+async def send_report_email(
+    report_type: int = Form(...),
+    recipients: str = Form(...)  # Comma-separated list of email addresses
+):
+    """Send report via email to selected recipients"""
     try:
         if not report_generator:
             raise HTTPException(status_code=500, detail="Report generator not initialized")
         
+        # Parse recipients list
+        recipient_list = [email.strip() for email in recipients.split(',') if email.strip()]
+        if not recipient_list:
+            raise HTTPException(status_code=400, detail="No recipients specified")
+        
         if report_type == 1:
-            result = await report_generator.generate_and_send_report1()
+            result = await report_generator.generate_and_send_report1(recipients=recipient_list)
         elif report_type == 2:
-            result = await report_generator.generate_and_send_report2()
+            result = await report_generator.generate_and_send_report2(recipients=recipient_list)
         else:
             raise HTTPException(status_code=400, detail="Invalid report type")
         
-        return {"success": True, "message": "報表已成功發送", "details": result}
+        return {"success": True, "message": f"報表已成功發送給 {len(recipient_list)} 位收件者", "details": result}
     
     except Exception as e:
         logger.error(f"Send report error: {e}")

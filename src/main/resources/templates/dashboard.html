@@ -93,7 +93,7 @@
                                 <p class="text-sm mb-4">議題進度統計報表<br>包含統計表格和詳細清單</p>
                                 <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                     <a href="/report1" class="btn btn-primary btn-sm">查看報表</a>
-                                    <button onclick="sendReport(1)" class="btn btn-secondary btn-sm">
+                                    <button onclick="showEmailDialog(1)" class="btn btn-secondary btn-sm">
                                         <span class="spinner hidden" id="spinner-1"></span>
                                         發送Email
                                     </button>
@@ -108,7 +108,7 @@
                                 <p class="text-sm mb-4">完成日期異動追蹤<br>議題完成日期修改記錄</p>
                                 <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                     <a href="/report2" class="btn btn-primary btn-sm">查看報表</a>
-                                    <button onclick="sendReport(2)" class="btn btn-secondary btn-sm">
+                                    <button onclick="showEmailDialog(2)" class="btn btn-secondary btn-sm">
                                         <span class="spinner hidden" id="spinner-2"></span>
                                         發送Email
                                     </button>
@@ -184,14 +184,172 @@
         </div>
     </main>
 
+    <!-- Email Dialog Modal -->
+    <div id="email-dialog" class="modal hidden">
+        <div class="modal-backdrop" onclick="closeEmailDialog()"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>選擇收件者</h3>
+                <button onclick="closeEmailDialog()" class="modal-close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-4">請選擇要接收報表的使用者：</p>
+                
+                <!-- Test Email Input -->
+                <div class="mb-4">
+                    <label class="font-bold mb-2 block">測試用Email地址：</label>
+                    <input type="email" id="test-email" class="input" placeholder="請輸入您的Email進行測試" />
+                    <p class="text-sm text-gray-500 mt-1">建議先輸入您自己的Email進行測試</p>
+                </div>
+                
+                <!-- User Selection -->
+                <div class="mb-4">
+                    <label class="font-bold mb-2 block">或選擇Redmine使用者：</label>
+                    <div id="users-loading" class="text-center py-4">載入使用者清單中...</div>
+                    <div id="users-list" class="hidden"></div>
+                </div>
+                
+                <!-- Selected Recipients Display -->
+                <div id="selected-recipients" class="hidden mb-4">
+                    <label class="font-bold mb-2 block">已選擇的收件者：</label>
+                    <div id="recipients-display" class="bg-gray-50 p-2 rounded text-sm"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeEmailDialog()" class="btn btn-secondary">取消</button>
+                <button onclick="sendEmailToSelected()" class="btn btn-primary" id="send-email-btn">
+                    <span class="spinner hidden" id="send-spinner"></span>
+                    發送Email
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
     <script>
-        // Send report via email
-        async function sendReport(reportType) {
-            const spinner = document.getElementById(`spinner-${reportType}`);
-            const button = spinner.parentElement;
+        let currentReportType = 1;
+        let selectedEmails = [];
+        let users = [];
+
+        // Show email dialog
+        async function showEmailDialog(reportType) {
+            currentReportType = reportType;
+            selectedEmails = [];
             
-            // Show loading state
+            document.getElementById('email-dialog').classList.remove('hidden');
+            document.getElementById('test-email').value = '';
+            
+            // Load users
+            await loadUsers();
+            updateRecipientsDisplay();
+        }
+
+        // Close email dialog
+        function closeEmailDialog() {
+            document.getElementById('email-dialog').classList.add('hidden');
+        }
+
+        // Load users from API
+        async function loadUsers() {
+            const loadingDiv = document.getElementById('users-loading');
+            const usersListDiv = document.getElementById('users-list');
+            
+            try {
+                loadingDiv.classList.remove('hidden');
+                usersListDiv.classList.add('hidden');
+                
+                const response = await fetch('/api/users');
+                const result = await response.json();
+                
+                if (result.success) {
+                    users = result.data;
+                    displayUsers(users);
+                } else {
+                    throw new Error(result.message || 'Failed to load users');
+                }
+            } catch (error) {
+                loadingDiv.innerHTML = `<div class="text-red-500">載入失敗: ${error.message}</div>`;
+            } finally {
+                loadingDiv.classList.add('hidden');
+                usersListDiv.classList.remove('hidden');
+            }
+        }
+
+        // Display users as checkboxes
+        function displayUsers(usersList) {
+            const usersListDiv = document.getElementById('users-list');
+            
+            if (usersList.length === 0) {
+                usersListDiv.innerHTML = '<div class="text-gray-500">沒有找到使用者</div>';
+                return;
+            }
+            
+            let html = '<div class="user-checkboxes" style="max-height: 200px; overflow-y: auto;">';
+            usersList.forEach(user => {
+                html += `
+                    <label class="user-checkbox" style="display: block; padding: 8px; border-bottom: 1px solid #eee;">
+                        <input type="checkbox" value="${user.email}" onchange="toggleUser('${user.email}', '${user.name}')" />
+                        <span style="margin-left: 8px;">${user.name} (${user.email})</span>
+                    </label>
+                `;
+            });
+            html += '</div>';
+            
+            usersListDiv.innerHTML = html;
+        }
+
+        // Toggle user selection
+        function toggleUser(email, name) {
+            const index = selectedEmails.findIndex(item => item.email === email);
+            
+            if (index > -1) {
+                selectedEmails.splice(index, 1);
+            } else {
+                selectedEmails.push({ email, name });
+            }
+            
+            updateRecipientsDisplay();
+        }
+
+        // Update recipients display
+        function updateRecipientsDisplay() {
+            const selectedDiv = document.getElementById('selected-recipients');
+            const displayDiv = document.getElementById('recipients-display');
+            
+            const testEmail = document.getElementById('test-email').value;
+            let allRecipients = [...selectedEmails];
+            
+            if (testEmail) {
+                allRecipients.unshift({ email: testEmail, name: '測試帳號' });
+            }
+            
+            if (allRecipients.length > 0) {
+                selectedDiv.classList.remove('hidden');
+                displayDiv.innerHTML = allRecipients
+                    .map(item => `<span class="badge badge-primary">${item.name} (${item.email})</span>`)
+                    .join(' ');
+            } else {
+                selectedDiv.classList.add('hidden');
+            }
+        }
+
+        // Send email to selected recipients
+        async function sendEmailToSelected() {
+            const testEmail = document.getElementById('test-email').value;
+            let allRecipients = [...selectedEmails.map(item => item.email)];
+            
+            if (testEmail) {
+                allRecipients.unshift(testEmail);
+            }
+            
+            if (allRecipients.length === 0) {
+                alert('請選擇至少一個收件者或輸入測試Email地址');
+                return;
+            }
+            
+            const spinner = document.getElementById('send-spinner');
+            const button = document.getElementById('send-email-btn');
+            
             spinner.classList.remove('hidden');
             button.disabled = true;
             
@@ -201,24 +359,30 @@
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                     },
-                    body: `report_type=${reportType}`
+                    body: `report_type=${currentReportType}&recipients=${allRecipients.join(',')}`
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert('✅ 報表已成功發送！');
+                    alert(`✅ 報表已成功發送給 ${allRecipients.length} 位收件者！`);
+                    closeEmailDialog();
                 } else {
                     alert('❌ 發送失敗：' + result.message);
                 }
             } catch (error) {
                 alert('❌ 發送失敗：' + error.message);
             } finally {
-                // Hide loading state
                 spinner.classList.add('hidden');
                 button.disabled = false;
             }
         }
+
+        // Update recipients display when test email changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const testEmailInput = document.getElementById('test-email');
+            testEmailInput.addEventListener('input', updateRecipientsDisplay);
+        });
         
         // Refresh statistics
         async function refreshStats() {

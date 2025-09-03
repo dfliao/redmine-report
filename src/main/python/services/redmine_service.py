@@ -303,17 +303,42 @@ class RedmineService:
     async def get_total_issue_count(self) -> int:
         """Get total number of issues"""
         try:
-            issues = self.redmine.issue.filter(status_id='*', limit=1)
-            return issues.total_count if hasattr(issues, 'total_count') else 0
+            # Use a broader query that should work with most Redmine configurations
+            issues = self.redmine.issue.filter(limit=1, offset=0)
+            total = getattr(issues, 'total_count', 0)
+            logger.info(f"Total issues count: {total}")
+            return total
         except Exception as e:
             logger.error(f"Error getting total issue count: {e}")
-            return 0
+            # Fallback: try to count manually if total_count fails
+            try:
+                all_issues = list(self.redmine.issue.filter(limit=100))
+                return len(all_issues)
+            except:
+                return 0
     
     async def get_open_issue_count(self) -> int:
         """Get count of open issues"""
         try:
-            issues = self.redmine.issue.filter(status_id='o', limit=1)
-            return issues.total_count if hasattr(issues, 'total_count') else 0
+            # Get all open statuses first
+            open_statuses = []
+            try:
+                statuses = self.redmine.issue_status.all()
+                open_statuses = [s.id for s in statuses if not getattr(s, 'is_closed', False)]
+            except:
+                # Fallback to common open status ID
+                open_statuses = [1, 2, 3]  # Common open status IDs
+            
+            if open_statuses:
+                # Use specific open status IDs
+                issues = self.redmine.issue.filter(status_id='|'.join(map(str, open_statuses)), limit=1)
+            else:
+                # Fallback to 'o' for open
+                issues = self.redmine.issue.filter(status_id='o', limit=1)
+                
+            total = getattr(issues, 'total_count', 0)
+            logger.info(f"Open issues count: {total}")
+            return total
         except Exception as e:
             logger.error(f"Error getting open issue count: {e}")
             return 0
@@ -322,8 +347,10 @@ class RedmineService:
         """Get count of issues updated today"""
         try:
             today = datetime.now().strftime('%Y-%m-%d')
-            issues = self.redmine.issue.filter(updated_on=today, limit=1)
-            return issues.total_count if hasattr(issues, 'total_count') else 0
+            issues = self.redmine.issue.filter(updated_on=f'>={today}', limit=1)
+            total = getattr(issues, 'total_count', 0)
+            logger.info(f"Today updated issues count: {total}")
+            return total
         except Exception as e:
             logger.error(f"Error getting today update count: {e}")
             return 0
@@ -342,4 +369,24 @@ class RedmineService:
             ]
         except Exception as e:
             logger.error(f"Error getting issue statuses: {e}")
+            return []
+    
+    async def get_users(self) -> List[Dict]:
+        """Get all active users in Redmine"""
+        try:
+            users = self.redmine.user.filter(status=1)  # Active users only
+            return [
+                {
+                    'id': user.id,
+                    'name': user.name if hasattr(user, 'name') else f"{user.firstname} {user.lastname}",
+                    'login': user.login if hasattr(user, 'login') else '',
+                    'email': user.mail if hasattr(user, 'mail') else '',
+                    'firstname': user.firstname if hasattr(user, 'firstname') else '',
+                    'lastname': user.lastname if hasattr(user, 'lastname') else ''
+                }
+                for user in users
+                if hasattr(user, 'mail') and user.mail  # Only users with email
+            ]
+        except Exception as e:
+            logger.error(f"Error getting users: {e}")
             return []
