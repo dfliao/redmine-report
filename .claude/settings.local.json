@@ -4,7 +4,10 @@
       "Bash(echo $SHELL)",
       "Bash(brew install:*)",
       "Bash(git push:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(python:*)",
+      "Bash(docker-compose config:*)"
     ],
     "deny": [],
     "ask": []

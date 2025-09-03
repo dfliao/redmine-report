@@ -7,6 +7,8 @@ Uses environment variables with sensible defaults.
 """
 
 import os
+import logging
+import sys
 from typing import Optional
 try:
     from pydantic import BaseSettings
@@ -105,3 +107,48 @@ def validate_config() -> bool:
         raise ValueError(f"Missing required configuration: {', '.join(missing_fields)}")
     
     return True
+
+
+def setup_logger(name: str) -> logging.Logger:
+    """
+    Setup structured logger with consistent formatting
+    
+    Args:
+        name: Logger name (typically __name__ from calling module)
+        
+    Returns:
+        Configured logger instance
+    """
+    settings = get_settings()
+    
+    # Create logger
+    logger = logging.getLogger(name)
+    logger.setLevel(getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
+    
+    # Avoid duplicate handlers
+    if logger.handlers:
+        return logger
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO))
+    
+    # Create formatter
+    if settings.DEBUG:
+        formatter = logging.Formatter(
+            fmt='%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+    else:
+        formatter = logging.Formatter(
+            fmt='%(asctime)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+    
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    # Prevent propagation to avoid duplicate logs
+    logger.propagate = False
+    
+    return logger

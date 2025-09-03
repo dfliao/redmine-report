@@ -9,6 +9,9 @@ services:
       # Redmine Configuration
       - REDMINE_URL=${REDMINE_URL:-http://redmine.example.com}
       - REDMINE_API_KEY=${REDMINE_API_KEY}
+      - REDMINE_VERSION=${REDMINE_VERSION:-6.0.6}
+      - REDMINE_TIMEOUT=${REDMINE_TIMEOUT:-30}
+      - REDMINE_VERIFY_SSL=${REDMINE_VERIFY_SSL:-true}
 
       # Email Configuration
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
@@ -16,34 +19,64 @@ services:
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
+      - EMAIL_USE_TLS=${EMAIL_USE_TLS:-true}
+      - EMAIL_USE_SSL=${EMAIL_USE_SSL:-false}
+      - EMAIL_TIMEOUT=${EMAIL_TIMEOUT:-60}
+      - EMAIL_RETRY_ATTEMPTS=${EMAIL_RETRY_ATTEMPTS:-3}
+      - EMAIL_RETRY_DELAY=${EMAIL_RETRY_DELAY:-5}
 
       # Report Configuration
       - REPORT_DAYS=${REPORT_DAYS:-14}
       - TIMEZONE=${TIMEZONE:-Asia/Taipei}
+      - EMAIL_SUBJECT_TEMPLATE=${EMAIL_SUBJECT_TEMPLATE:-【Redmine報表】{date} - 議題進度統計}
+      - EMAIL_CHARSET=${EMAIL_CHARSET:-utf-8}
+
+      # API Configuration
+      - API_HOST=${API_HOST:-0.0.0.0}
+      - API_PORT=${API_PORT:-3003}
+      - API_PREFIX=${API_PREFIX:-/api/v1}
 
       # Schedule Configuration (cron format)
       - SCHEDULE_CRON=${SCHEDULE_CRON:-0 8 * * 1}  # Every Monday at 8:00 AM
-      - REDIS_URL=redis://redis:6379
+
+      # Security Configuration
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SECRET_KEY=${SECRET_KEY:-redmine-report-secret-key-2024}
+
+      # Performance Configuration
+      - MAX_WORKERS=${MAX_WORKERS:-2}
+      - WORKER_TIMEOUT=${WORKER_TIMEOUT:-300}
+      - MEMORY_LIMIT=${MEMORY_LIMIT:-256M}
+      - CPU_LIMIT=${CPU_LIMIT:-0.8}
+
+      # Caching Configuration (Optional)
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
+      - CACHE_TTL=${CACHE_TTL:-3600}
 
     ports:
       - "3003:3003"  # Web interface and API endpoints
 
     volumes:
       - /volume1/ai-stack2/redmine-report/output:/app/output:rw
-      - /volume1/ai-stack2/redmine-report/src/main/resources/config:/app/src/main/resources/config:ro
-
-    external_links:
-      - redis:redis
-
+      - /volume1/ai-stack2/redmine-report/src/main/resources:/app/src/main/resources:ro
 
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:3003/health')"]
+      test: ["CMD", "python", "-c", "import requests; r = requests.get('http://localhost:3003/health', timeout=5); assert r.status_code == 200"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
 
-    # Resource limits optimized for Synology NAS
+    # Resource limits optimized for Synology DS920+
+    deploy:
+      resources:
+        limits:
+          cpus: '0.8'
+          memory: 256M
+        reservations:
+          cpus: '0.2'
+          memory: 128M
 
     # Synology-specific optimizations
     logging:

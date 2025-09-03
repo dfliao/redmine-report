@@ -22,7 +22,7 @@ from ..web.app import app as web_app
 from ..services.report_generator import ReportGenerator  
 from ..services.email_service import EmailService
 from ..services.scheduler_service import SchedulerService
-from ..utils.config import get_settings, validate_config
+from ..utils.config import get_settings, validate_config, setup_logger
 
 class ReportRequest(BaseModel):
     """Request model for manual report generation"""
