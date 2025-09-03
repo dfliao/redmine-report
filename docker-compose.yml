@@ -9,79 +9,45 @@ services:
       # Redmine Configuration
       - REDMINE_URL=${REDMINE_URL:-http://redmine.example.com}
       - REDMINE_API_KEY=${REDMINE_API_KEY}
-      
+
       # Email Configuration
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USERNAME=${SMTP_USERNAME}
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - EMAIL_FROM=${EMAIL_FROM}
-      
+
       # Report Configuration
       - REPORT_DAYS=${REPORT_DAYS:-14}
       - TIMEZONE=${TIMEZONE:-Asia/Taipei}
-      
+
       # Schedule Configuration (cron format)
       - SCHEDULE_CRON=${SCHEDULE_CRON:-0 8 * * 1}  # Every Monday at 8:00 AM
-      
+      - REDIS_URL=redis://redis:6379
+
     ports:
       - "3003:3003"  # Web interface and API endpoints
-      
+
     volumes:
       - /volume1/ai-stack2/redmine-report/output:/app/output:rw
       - /volume1/ai-stack2/redmine-report/src/main/resources/config:/app/src/main/resources/config:ro
-      
-    networks:
-      - redmine-network
-      
+
+    external_links:
+      - redis:redis
+
+
     healthcheck:
-      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:3003/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-      
+
     # Resource limits optimized for Synology NAS
-    deploy:
-      resources:
-        limits:
-          cpus: '0.8'          # Conservative CPU limit for NAS
-          memory: 256M         # Reduced memory for NAS efficiency
-        reservations:
-          cpus: '0.1'
-          memory: 64M
-    
+
     # Synology-specific optimizations
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-
-  # Optional: Redis for caching (if needed)
-  redis:
-    image: redis:7-alpine
-    container_name: redmine-report-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - redmine-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.1'
-          memory: 64M
-
-networks:
-  redmine-network:
-    driver: bridge
-
-volumes:
-  redis_data:
-    driver: local
