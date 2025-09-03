@@ -191,11 +191,26 @@ class RedmineService:
             # Check if this journal contains due date changes
             if hasattr(journal, 'details'):
                 for detail in journal.details:
-                    if hasattr(detail, 'name') and detail.name == 'due_date':
+                    # Handle both dict and object formats for detail
+                    if isinstance(detail, dict):
+                        # python-redmine 2.5.0+ returns dict format
+                        field_name = detail.get('name', '')
+                        old_value = detail.get('old_value', '')
+                        new_value = detail.get('new_value', '')
+                        property_type = detail.get('property', '')
+                    else:
+                        # Legacy object format
+                        field_name = getattr(detail, 'name', '')
+                        old_value = getattr(detail, 'old_value', '')
+                        new_value = getattr(detail, 'new_value', '')
+                        property_type = getattr(detail, 'property', '')
+                    
+                    # Check if this is a due_date change for attribute properties
+                    if property_type == 'attr' and field_name == 'due_date':
                         changes.append({
                             'user': journal.user.name if hasattr(journal, 'user') else 'Unknown',
-                            'old_date': detail.old_value if hasattr(detail, 'old_value') else '',
-                            'new_date': detail.new_value if hasattr(detail, 'new_value') else '',
+                            'old_date': old_value or '',
+                            'new_date': new_value or '',
                             'change_date': journal.created_on.strftime('%Y-%m-%d %H:%M')
                         })
         
