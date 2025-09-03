@@ -5,9 +5,10 @@ services:
     build: .
     container_name: redmine-report-service
     restart: unless-stopped
+    network_mode: "host"  # Use host network to access external Redmine server
     environment:
       # Redmine Configuration
-      - REDMINE_URL=${REDMINE_URL:-http://redmine.example.com}
+      - REDMINE_URL=${REDMINE_URL:-http://192.168.0.222:3000}
       - REDMINE_API_KEY=${REDMINE_API_KEY}
 
       # Email Configuration
@@ -23,18 +24,18 @@ services:
 
       # Schedule Configuration (cron format)
       - SCHEDULE_CRON=${SCHEDULE_CRON:-0 8 * * 1}  # Every Monday at 8:00 AM
-      - REDIS_URL=redis://redis:6379
 
-    ports:
-      - "3003:3003"  # Web interface and API endpoints
+      # Debug Configuration
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+
+    # Note: ports not needed in host network mode - service runs on host port 3003
 
     volumes:
       - /volume1/ai-stack2/redmine-report/output:/app/output:rw
       - /volume1/ai-stack2/redmine-report/src/main/resources/config:/app/src/main/resources/config:ro
 
-    external_links:
-      - redis:redis
-
+    # Note: external_links not needed in host network mode
 
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:3003/health')"]
@@ -43,8 +44,6 @@ services:
       retries: 3
       start_period: 40s
 
-    # Resource limits optimized for Synology NAS
-
     # Synology-specific optimizations
     logging:
       driver: "json-file"
@@ -52,4 +51,4 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Optional: Redis for caching (if needed)
+  # Note: Redis service removed as host network mode allows direct connection to external Redis if needed
