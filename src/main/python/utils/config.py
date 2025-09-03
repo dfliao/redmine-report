@@ -8,7 +8,10 @@ Uses environment variables with sensible defaults.
 
 import os
 from typing import Optional
-from pydantic import BaseSettings
+try:
+    from pydantic import BaseSettings
+except ImportError:
+    from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""

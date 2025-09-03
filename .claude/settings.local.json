@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(echo $SHELL)",
-      "Bash(brew install:*)"
+      "Bash(brew install:*)",
+      "Bash(git push:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []
