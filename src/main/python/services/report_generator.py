@@ -40,8 +40,8 @@ class ReportGenerator:
             
             # Determine recipients
             if not recipients:
-                # Get all assignees as default recipients
-                recipients = self._get_default_recipients(table1_data + table2_data)
+                # Get all Redmine users as default recipients
+                recipients = await self._get_default_recipients(table1_data + table2_data)
             
             # Send email
             subject = f"Redmine 進度報表 - {start_date.strftime('%Y/%m/%d')} 至 {end_date.strftime('%Y/%m/%d')}"
@@ -82,8 +82,8 @@ class ReportGenerator:
             
             # Determine recipients
             if not recipients:
-                # Get all modifiers and assignees as default recipients
-                recipients = self._get_default_recipients_report2(changes_data)
+                # Get all Redmine users as default recipients
+                recipients = await self._get_default_recipients_report2(changes_data)
             
             # Send email
             subject = f"Redmine 完成日期異動報表 - {update_date.strftime('%Y/%m/%d')}"
@@ -106,27 +106,23 @@ class ReportGenerator:
             logger.error(f"Failed to generate Report 2: {e}")
             raise
     
-    def _get_default_recipients(self, data: List) -> List[str]:
-        """Extract email addresses from assignees in report data"""
-        emails = set()
-        for item in data:
-            if 'assigned_to' in item and item['assigned_to'] and item['assigned_to'] != '未分派':
-                # This is a simplified approach - in real implementation,
-                # you would map assignee names to email addresses
-                assignee = item['assigned_to']
-                # For now, return a test email or admin email
-                emails.add(self.settings.EMAIL_FROM)  # Use sender as fallback
-        return list(emails) or [self.settings.EMAIL_FROM]
+    async def _get_default_recipients(self, data: List) -> List[str]:
+        """Get all Redmine users as default recipients"""
+        try:
+            # Get all Redmine users
+            users = await self.redmine_service.get_users()
+            emails = [user['email'] for user in users if user.get('email')]
+            
+            logger.info(f"Found {len(emails)} Redmine user emails for recipients")
+            return emails or [self.settings.EMAIL_FROM]
+            
+        except Exception as e:
+            logger.error(f"Error getting default recipients: {e}")
+            return [self.settings.EMAIL_FROM]
     
-    def _get_default_recipients_report2(self, data: List) -> List[str]:
-        """Extract email addresses from modifiers and assignees in report 2 data"""
-        emails = set()
-        for item in data:
-            # Add modifier and assignee emails
-            for field in ['modifier', 'assigned_to']:
-                if field in item and item[field] and item[field] != '未分派':
-                    emails.add(self.settings.EMAIL_FROM)  # Use sender as fallback
-        return list(emails) or [self.settings.EMAIL_FROM]
+    async def _get_default_recipients_report2(self, data: List) -> List[str]:
+        """Get all Redmine users as default recipients for report 2"""
+        return await self._get_default_recipients(data)
     
     def _generate_report1_html(self, table1_data: List, table2_data: List, start_date: date, end_date: date) -> str:
         """Generate HTML content for Report 1"""
@@ -183,6 +179,8 @@ class ReportGenerator:
                 .date-range {{ color: #666; margin-bottom: 20px; }}
                 .adjustment-positive {{ color: #d9534f; }}
                 .adjustment-negative {{ color: #5cb85c; }}
+                .priority-high {{ background-color: #fff3cd; color: #856404; }}
+                .priority-urgent {{ background-color: #f8d7da; color: #721c24; }}
             </style>
         </head>
         <body>
@@ -279,10 +277,18 @@ class ReportGenerator:
             elif adjustment.startswith('-'):
                 adjustment_class = "adjustment-negative"
             
+            # Priority color coding
+            priority = row.get('priority', '')
+            priority_class = ""
+            if priority == '高':
+                priority_class = "priority-high"
+            elif priority == '急':
+                priority_class = "priority-urgent"
+            
             html += f"""
             <tr>
                 <td>{row.get('project', '')}</td>
-                <td>{row.get('priority', '')}</td>
+                <td class="{priority_class}">{priority}</td>
                 <td>{row.get('subject', '')}</td>
                 <td>{row.get('modifier', '')}</td>
                 <td>{row.get('assigned_to', '')}</td>

@@ -39,7 +39,32 @@ class RedmineService:
         # Statuses that are aggregated into "進行中"
         self.active_statuses = ['執行中', '審核中', '修改中', '已完成(結案)']
         
+        # Excluded projects (including sub-projects)
+        self.excluded_projects = ['a55700']  # 專項用 project and its sub-projects
+        
         logger.info(f"Initialized Redmine service for {settings.REDMINE_URL}")
+    
+    def _should_exclude_issue(self, issue) -> bool:
+        """Check if an issue should be excluded based on project"""
+        try:
+            if hasattr(issue, 'project') and hasattr(issue.project, 'identifier'):
+                project_id = issue.project.identifier
+                
+                # Check if project ID is in excluded list
+                if project_id in self.excluded_projects:
+                    return True
+                
+                # Check if it's a sub-project of excluded projects
+                # Get parent project chain to check for excluded parents
+                if hasattr(issue.project, 'parent') and issue.project.parent:
+                    parent = issue.project.parent
+                    if hasattr(parent, 'identifier') and parent.identifier in self.excluded_projects:
+                        return True
+                        
+            return False
+        except Exception as e:
+            logger.warning(f"Error checking project exclusion for issue: {e}")
+            return False
     
     async def get_issue_statistics(self, start_date: date, end_date: date) -> List[Dict]:
         """
@@ -59,6 +84,9 @@ class RedmineService:
             stats = {}
             
             for issue in issues:
+                # Skip excluded projects
+                if self._should_exclude_issue(issue):
+                    continue
                 assignee = issue.assigned_to.name if hasattr(issue, 'assigned_to') else '未分派'
                 status = issue.status.name if hasattr(issue, 'status') else '未知狀態'
                 
@@ -130,6 +158,9 @@ class RedmineService:
             
             result = []
             for issue in issues:
+                # Skip excluded projects
+                if self._should_exclude_issue(issue):
+                    continue
                 result.append({
                     'project': issue.project.name if hasattr(issue, 'project') else '',
                     'priority': issue.priority.name if hasattr(issue, 'priority') else '',
@@ -180,6 +211,10 @@ class RedmineService:
             result = []
             
             for issue in issues:
+                # Skip excluded projects
+                if self._should_exclude_issue(issue):
+                    continue
+                    
                 # Check journals for due date changes
                 due_date_changes = self._extract_due_date_changes(issue, update_date)
                 

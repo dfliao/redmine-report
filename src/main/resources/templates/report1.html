@@ -326,21 +326,8 @@
         // Send report via email
         async function sendReport(reportType) {
             try {
-                const response = await fetch('/api/send-report', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: `report_type=${reportType}`
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert('✅ 報表已成功發送！');
-                } else {
-                    alert('❌ 發送失敗：' + result.message);
-                }
+                // Instead of using old API, redirect to new send-email page
+                window.location.href = `/send-email?type=${reportType}`;
             } catch (error) {
                 alert('❌ 發送失敗：' + error.message);
             }

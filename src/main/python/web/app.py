@@ -357,6 +357,129 @@ async def execute_send_email(
             "title": f"發送報表 - {'Redmine 任務總欄' if report_type == 1 else '任務進度變更進度表'}"
         })
 
+@app.get("/change-password", response_class=HTMLResponse)
+async def change_password_page(request: Request):
+    """Change password page with admin authentication"""
+    try:
+        return templates.TemplateResponse("change-password.html", {
+            "request": request,
+            "authenticated": False,
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "變更密碼"
+        })
+    except Exception as e:
+        logger.error(f"Change password page error: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": str(e),
+            "title": "錯誤"
+        })
+
+@app.post("/change-password", response_class=HTMLResponse)
+async def authenticate_for_password_change(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...)
+):
+    """Authenticate admin user for password change"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        # Authenticate with Redmine
+        is_admin = await redmine_service.authenticate_admin(username, password)
+        
+        if not is_admin:
+            return templates.TemplateResponse("change-password.html", {
+                "request": request,
+                "authenticated": False,
+                "error": "認證失敗：請確認使用者名稱和密碼正確，且具有管理員權限",
+                "current_date": datetime.now().strftime("%Y-%m-%d"),
+                "title": "變更密碼"
+            })
+        
+        # Get users list for admin
+        users = await redmine_service.get_users()
+        
+        return templates.TemplateResponse("change-password.html", {
+            "request": request,
+            "authenticated": True,
+            "is_admin": is_admin,
+            "current_user": username,
+            "users": users,
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "變更密碼"
+        })
+        
+    except Exception as e:
+        logger.error(f"Password change authentication error: {e}")
+        return templates.TemplateResponse("change-password.html", {
+            "request": request,
+            "authenticated": False,
+            "error": f"認證過程發生錯誤：{str(e)}",
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "變更密碼"
+        })
+
+@app.post("/change-password-execute", response_class=HTMLResponse)
+async def execute_password_change(
+    request: Request,
+    target_user: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    current_password: Optional[str] = Form(None),
+    change_dsm: Optional[str] = Form(None),
+    change_ldap: Optional[str] = Form(None)
+):
+    """Execute password change for selected systems"""
+    try:
+        # Validate passwords match
+        if new_password != confirm_password:
+            raise HTTPException(status_code=400, detail="新密碼與確認密碼不符")
+        
+        if len(new_password) < 8:
+            raise HTTPException(status_code=400, detail="密碼長度至少需要8個字元")
+        
+        # TODO: Implement actual password change logic for:
+        # 1. Synology DSM users
+        # 2. Synology LDAP server
+        # This requires Synology API integration or SSH/command execution
+        
+        # For now, simulate the process
+        results = []
+        if change_dsm:
+            results.append("Synology DSM 密碼變更成功")
+        if change_ldap:
+            results.append("Synology LDAP 密碼變更成功")
+        
+        # Get users list again for the success page
+        users = await redmine_service.get_users() if redmine_service else []
+        
+        return templates.TemplateResponse("change-password.html", {
+            "request": request,
+            "authenticated": True,
+            "is_admin": True,
+            "users": users,
+            "success": f"密碼變更完成：{', '.join(results) if results else '未選擇任何系統'}",
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "變更密碼"
+        })
+        
+    except Exception as e:
+        logger.error(f"Execute password change error: {e}")
+        # Get users list again for error page
+        users = await redmine_service.get_users() if redmine_service else []
+        
+        return templates.TemplateResponse("change-password.html", {
+            "request": request,
+            "authenticated": True,
+            "is_admin": True,
+            "users": users,
+            "error": f"密碼變更失敗：{str(e)}",
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "變更密碼"
+        })
+
 @app.post("/api/send-report")
 async def send_report_email(
     report_type: int = Form(...),

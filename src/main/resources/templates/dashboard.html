@@ -123,10 +123,23 @@
                                     <div>Python: 3.11+</div>
                                     <div>容器: Docker</div>
                                 </div>
-                                <button onclick="refreshStats()" class="btn btn-secondary btn-sm">
-                                    <span class="spinner hidden" id="spinner-refresh"></span>
-                                    重新整理
-                                </button>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <button onclick="refreshStats()" class="btn btn-secondary btn-sm">
+                                        <span class="spinner hidden" id="spinner-refresh"></span>
+                                        重新整理
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Password Management Card -->
+                        <div class="card">
+                            <div class="card-body">
+                                <h4 class="mb-4">🔐 變更密碼</h4>
+                                <p class="text-sm mb-4">一次性變更Synology DMS與LDAP密碼<br>需要管理員權限驗證</p>
+                                <a href="/change-password" class="btn btn-primary btn-sm">
+                                    變更密碼
+                                </a>
                             </div>
                         </div>
                     </div>
