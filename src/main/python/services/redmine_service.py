@@ -303,42 +303,70 @@ class RedmineService:
     async def get_total_issue_count(self) -> int:
         """Get total number of issues"""
         try:
-            # Use a broader query that should work with most Redmine configurations
-            issues = self.redmine.issue.filter(limit=1, offset=0)
-            total = getattr(issues, 'total_count', 0)
-            logger.info(f"Total issues count: {total}")
-            return total
+            # Force evaluation by converting to list first, then get total_count
+            issues = self.redmine.issue.filter(limit=1)
+            
+            # Force evaluation to get total_count
+            try:
+                # This forces the query to execute
+                list(issues)
+                total = getattr(issues, 'total_count', 0)
+                logger.info(f"Total issues count: {total}")
+                return total
+            except Exception as e:
+                logger.warning(f"total_count method failed: {e}, trying manual count")
+                # Manual count fallback
+                all_issues = self.redmine.issue.all()
+                count = len(list(all_issues))
+                logger.info(f"Manual count total issues: {count}")
+                return count
+                
         except Exception as e:
             logger.error(f"Error getting total issue count: {e}")
-            # Fallback: try to count manually if total_count fails
-            try:
-                all_issues = list(self.redmine.issue.filter(limit=100))
-                return len(all_issues)
-            except:
-                return 0
+            return 0
     
     async def get_open_issue_count(self) -> int:
         """Get count of open issues"""
         try:
-            # Get all open statuses first
-            open_statuses = []
+            # Try using the 'open' status first
             try:
-                statuses = self.redmine.issue_status.all()
-                open_statuses = [s.id for s in statuses if not getattr(s, 'is_closed', False)]
-            except:
-                # Fallback to common open status ID
-                open_statuses = [1, 2, 3]  # Common open status IDs
-            
-            if open_statuses:
-                # Use specific open status IDs
-                issues = self.redmine.issue.filter(status_id='|'.join(map(str, open_statuses)), limit=1)
-            else:
-                # Fallback to 'o' for open
                 issues = self.redmine.issue.filter(status_id='o', limit=1)
+                # Force evaluation
+                list(issues)
+                total = getattr(issues, 'total_count', 0)
+                logger.info(f"Open issues count (method 1): {total}")
+                return total
+            except Exception as e1:
+                logger.warning(f"Open status 'o' failed: {e1}, trying status IDs")
                 
-            total = getattr(issues, 'total_count', 0)
-            logger.info(f"Open issues count: {total}")
-            return total
+                # Get all open statuses and try specific IDs
+                try:
+                    statuses = self.redmine.issue_status.all()
+                    open_status_ids = [str(s.id) for s in statuses if not getattr(s, 'is_closed', False)]
+                    
+                    if open_status_ids:
+                        issues = self.redmine.issue.filter(status_id='|'.join(open_status_ids), limit=1)
+                        list(issues)
+                        total = getattr(issues, 'total_count', 0)
+                        logger.info(f"Open issues count (method 2): {total}")
+                        return total
+                except Exception as e2:
+                    logger.warning(f"Status ID method failed: {e2}, trying manual count")
+                    
+                    # Manual count fallback
+                    try:
+                        statuses = self.redmine.issue_status.all()
+                        open_status_ids = [s.id for s in statuses if not getattr(s, 'is_closed', False)]
+                        
+                        if open_status_ids:
+                            issues = self.redmine.issue.filter(status_id='|'.join(map(str, open_status_ids)))
+                            count = len(list(issues))
+                            logger.info(f"Manual count open issues: {count}")
+                            return count
+                    except Exception as e3:
+                        logger.error(f"All open count methods failed: {e3}")
+                        
+            return 0
         except Exception as e:
             logger.error(f"Error getting open issue count: {e}")
             return 0
@@ -347,10 +375,38 @@ class RedmineService:
         """Get count of issues updated today"""
         try:
             today = datetime.now().strftime('%Y-%m-%d')
-            issues = self.redmine.issue.filter(updated_on=f'>={today}', limit=1)
-            total = getattr(issues, 'total_count', 0)
-            logger.info(f"Today updated issues count: {total}")
-            return total
+            
+            # Try different date formats for updated_on filter
+            try:
+                issues = self.redmine.issue.filter(updated_on=f'>={today}', limit=1)
+                # Force evaluation
+                list(issues)
+                total = getattr(issues, 'total_count', 0)
+                logger.info(f"Today updated issues count (method 1): {total}")
+                return total
+            except Exception as e1:
+                logger.warning(f"Date filter '>=' failed: {e1}, trying exact date")
+                
+                try:
+                    # Try exact date match
+                    issues = self.redmine.issue.filter(updated_on=today, limit=1)
+                    list(issues)
+                    total = getattr(issues, 'total_count', 0)
+                    logger.info(f"Today updated issues count (method 2): {total}")
+                    return total
+                except Exception as e2:
+                    logger.warning(f"Exact date filter failed: {e2}, trying manual count")
+                    
+                    # Manual count fallback
+                    try:
+                        issues = self.redmine.issue.filter(updated_on=f'>={today}')
+                        count = len(list(issues))
+                        logger.info(f"Manual count today updated issues: {count}")
+                        return count
+                    except Exception as e3:
+                        logger.error(f"All today update methods failed: {e3}")
+                        
+            return 0
         except Exception as e:
             logger.error(f"Error getting today update count: {e}")
             return 0

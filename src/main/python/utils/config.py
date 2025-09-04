@@ -25,12 +25,12 @@ class Settings(BaseSettings):
     REDMINE_TIMEOUT: int = int(os.getenv('REDMINE_TIMEOUT', '30'))
     REDMINE_VERIFY_SSL: bool = os.getenv('REDMINE_VERIFY_SSL', 'true').lower() == 'true'
     
-    # Email Configuration
-    SMTP_HOST: str = os.getenv('SMTP_HOST', 'localhost')
+    # Email Configuration (Redmine-compatible defaults)
+    SMTP_HOST: str = os.getenv('SMTP_HOST', '192.168.0.222')
     SMTP_PORT: int = int(os.getenv('SMTP_PORT', '587'))
-    SMTP_USERNAME: str = os.getenv('SMTP_USERNAME', '')
-    SMTP_PASSWORD: str = os.getenv('SMTP_PASSWORD', '')
-    EMAIL_FROM: str = os.getenv('EMAIL_FROM', '')
+    SMTP_USERNAME: str = os.getenv('SMTP_USERNAME', 'GOPEAK@mail.gogopeaks.com')
+    SMTP_PASSWORD: str = os.getenv('SMTP_PASSWORD', '5w~IDW')
+    EMAIL_FROM: str = os.getenv('EMAIL_FROM', 'GOPEAK@mail.gogopeaks.com')
     EMAIL_USE_TLS: bool = os.getenv('EMAIL_USE_TLS', 'true').lower() == 'true'
     EMAIL_USE_SSL: bool = os.getenv('EMAIL_USE_SSL', 'false').lower() == 'true'
     EMAIL_TIMEOUT: int = int(os.getenv('EMAIL_TIMEOUT', '60'))
