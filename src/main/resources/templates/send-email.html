@@ -85,13 +85,25 @@
 
                         <!-- Users Selection -->
                         <div class="form-group">
-                            <label class="form-label">選擇Redmine使用者</label>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <label class="form-label">選擇Redmine使用者</label>
+                                {% if users %}
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button type="button" onclick="selectAllUsers()" class="btn btn-sm btn-secondary">
+                                        全選
+                                    </button>
+                                    <button type="button" onclick="deselectAllUsers()" class="btn btn-sm btn-secondary">
+                                        取消全選
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
                             {% if users %}
                             <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); padding: var(--space-3);">
                                 {% for user in users %}
                                 <label class="user-checkbox" style="display: block; padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;">
                                     <input type="checkbox" name="user_emails" value="{{ user.email }}" 
-                                           style="margin-right: 8px;" />
+                                           style="margin-right: 8px;" class="user-email-checkbox" />
                                     {{ user.name }} ({{ user.email }})
                                 </label>
                                 {% endfor %}
@@ -152,6 +164,83 @@
         .user-checkbox:hover {
             background-color: var(--gray-50);
         }
+        .user-checkbox.selected {
+            background-color: #e3f2fd;
+            border-left: 3px solid #2196f3;
+        }
+        .btn-sm {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.875rem;
+            border-radius: 0.25rem;
+        }
     </style>
+
+    <script>
+        // Select all user email checkboxes
+        function selectAllUsers() {
+            const checkboxes = document.querySelectorAll('.user-email-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            updateSelectionCount();
+        }
+
+        // Deselect all user email checkboxes  
+        function deselectAllUsers() {
+            const checkboxes = document.querySelectorAll('.user-email-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            updateSelectionCount();
+        }
+
+        // Update selection count display
+        function updateSelectionCount() {
+            const checkboxes = document.querySelectorAll('.user-email-checkbox');
+            const checkedBoxes = document.querySelectorAll('.user-email-checkbox:checked');
+            const count = checkedBoxes.length;
+            
+            // Update visual indicators for selected items
+            checkboxes.forEach(checkbox => {
+                const label = checkbox.closest('.user-checkbox');
+                if (checkbox.checked) {
+                    label.classList.add('selected');
+                } else {
+                    label.classList.remove('selected');
+                }
+            });
+            
+            // Update button text to show selection count
+            const selectButton = document.querySelector('button[onclick="selectAllUsers()"]');
+            const deselectButton = document.querySelector('button[onclick="deselectAllUsers()"]');
+            
+            if (selectButton && deselectButton) {
+                const totalCount = checkboxes.length;
+                
+                if (count === 0) {
+                    selectButton.textContent = `全選 (${totalCount})`;
+                    deselectButton.textContent = '取消全選';
+                } else if (count === totalCount) {
+                    selectButton.textContent = `全選 ✓`;
+                    deselectButton.textContent = `取消全選 (${count})`;
+                } else {
+                    selectButton.textContent = `全選 (${totalCount})`;
+                    deselectButton.textContent = `取消全選 (${count})`;
+                }
+            }
+        }
+
+        // Initialize selection count on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add change event listeners to all checkboxes
+            const checkboxes = document.querySelectorAll('.user-email-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', updateSelectionCount);
+            });
+            
+            // Initialize count display
+            updateSelectionCount();
+        });
+    </script>
 </body>
 </html>
