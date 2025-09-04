@@ -190,7 +190,10 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h3>選擇收件者</h3>
-                <button onclick="closeEmailDialog()" class="modal-close">&times;</button>
+                <div style="display: flex; gap: 0.5rem;">
+                    <button onclick="closeEmailDialog()" class="btn btn-secondary btn-sm">✕ 關閉</button>
+                    <button onclick="closeEmailDialog()" class="modal-close">&times;</button>
+                </div>
             </div>
             <div class="modal-body">
                 <p class="mb-4">請選擇要接收報表的使用者：</p>
@@ -236,68 +239,147 @@
             currentReportType = reportType;
             selectedEmails = [];
             
+            // Show dialog immediately
             document.getElementById('email-dialog').classList.remove('hidden');
             document.getElementById('test-email').value = '';
             
-            // Load users
-            await loadUsers();
+            // Clear any previous state
+            document.getElementById('users-loading').classList.remove('hidden');
+            document.getElementById('users-loading').innerHTML = '載入使用者清單中...';
+            document.getElementById('users-list').classList.add('hidden');
+            document.getElementById('users-list').innerHTML = '';
+            
+            // Load users in background (non-blocking)
+            loadUsers().catch(error => {
+                console.error('Load users failed:', error);
+                // Ensure UI is still functional even if loading fails
+                document.getElementById('users-loading').classList.add('hidden');
+                document.getElementById('users-list').classList.remove('hidden');
+                document.getElementById('users-list').innerHTML = `
+                    <div class="text-gray-500 p-4 text-center">
+                        載入使用者清單失敗<br>
+                        請使用上方的測試Email功能
+                    </div>
+                `;
+            });
+            
             updateRecipientsDisplay();
         }
 
         // Close email dialog
         function closeEmailDialog() {
-            document.getElementById('email-dialog').classList.add('hidden');
+            const dialog = document.getElementById('email-dialog');
+            
+            // Force close regardless of any loading states
+            dialog.classList.add('hidden');
+            
+            // Reset all dialog states
+            selectedEmails = [];
+            document.getElementById('test-email').value = '';
+            
+            // Stop any ongoing requests (if possible)
+            try {
+                // Clear the users loading state
+                document.getElementById('users-loading').classList.add('hidden');
+                document.getElementById('users-list').classList.add('hidden');
+                
+                // Reset recipients display
+                document.getElementById('selected-recipients').classList.add('hidden');
+                
+                // Reset send button state
+                const sendButton = document.getElementById('send-email-btn');
+                if (sendButton) {
+                    sendButton.disabled = false;
+                    const spinner = document.getElementById('send-spinner');
+                    if (spinner) {
+                        spinner.classList.add('hidden');
+                    }
+                }
+            } catch (error) {
+                console.error('Error resetting dialog state:', error);
+            }
+            
+            console.log('Email dialog closed and reset');
         }
 
-        // Load users from API
+        // Load users from API with timeout and error handling
         async function loadUsers() {
             const loadingDiv = document.getElementById('users-loading');
             const usersListDiv = document.getElementById('users-list');
+            
+            let timeoutId;
             
             try {
                 loadingDiv.classList.remove('hidden');
                 loadingDiv.innerHTML = '載入使用者清單中...';
                 usersListDiv.classList.add('hidden');
                 
-                const response = await fetch('/api/users', {
-                    method: 'GET',
-                    timeout: 10000  // 10 second timeout
+                // Create a timeout promise
+                const timeoutPromise = new Promise((_, reject) => {
+                    timeoutId = setTimeout(() => reject(new Error('載入超時')), 8000);
                 });
                 
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
+                // Create the fetch promise
+                const fetchPromise = fetch('/api/users', {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                }).then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                });
                 
-                const result = await response.json();
+                // Race between fetch and timeout
+                const result = await Promise.race([fetchPromise, timeoutPromise]);
+                
+                // Clear timeout if request succeeded
+                clearTimeout(timeoutId);
                 
                 if (result.success) {
                     users = result.data || [];
+                    console.log(`Loaded ${users.length} users`);
                     displayUsers(users);
                 } else {
-                    throw new Error(result.message || 'API returned error');
+                    throw new Error(result.message || 'API 回傳錯誤');
                 }
+                
             } catch (error) {
                 console.error('Load users error:', error);
                 
-                // Show error message but still allow modal to function
+                // Clear timeout on error
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
+                
+                // Show error message with retry option
                 loadingDiv.innerHTML = `
-                    <div class="text-red-500 mb-4">
+                    <div class="text-red-500 mb-4 p-3 border rounded">
                         <strong>載入失敗:</strong> ${error.message}<br>
-                        <small>您仍可使用測試Email功能</small>
+                        <small class="text-gray-600">請使用下方的測試Email功能，或</small><br>
+                        <button onclick="loadUsers()" class="btn btn-secondary btn-sm mt-2">
+                            重試載入
+                        </button>
                     </div>
                 `;
                 
-                // Show a fallback message in the users list
+                // Show fallback in users list
                 usersListDiv.innerHTML = `
-                    <div class="text-gray-500 p-4 text-center">
-                        無法載入Redmine使用者清單<br>
-                        請使用上方的測試Email功能
+                    <div class="text-gray-500 p-4 text-center border rounded">
+                        <p class="mb-2">📧 建議使用測試Email功能</p>
+                        <small>直接在上方輸入您的Email地址即可測試</small>
                     </div>
                 `;
+                
             } finally {
-                // Always show the users list div and hide loading, even on error
-                loadingDiv.classList.add('hidden');
-                usersListDiv.classList.remove('hidden');
+                // Always ensure UI is responsive
+                setTimeout(() => {
+                    loadingDiv.classList.add('hidden');
+                    usersListDiv.classList.remove('hidden');
+                }, 100);
             }
         }
 
@@ -409,15 +491,42 @@
             const testEmailInput = document.getElementById('test-email');
             testEmailInput.addEventListener('input', updateRecipientsDisplay);
             
-            // Add ESC key support to close modal
+            // Add ESC key support and click outside to close modal
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'Escape') {
                     const modal = document.getElementById('email-dialog');
                     if (!modal.classList.contains('hidden')) {
+                        console.log('ESC pressed - closing modal');
                         closeEmailDialog();
                     }
                 }
             });
+            
+            // Add click outside modal content to close
+            document.addEventListener('click', function(e) {
+                const modal = document.getElementById('email-dialog');
+                const modalContent = document.querySelector('.modal-content');
+                
+                if (!modal.classList.contains('hidden') && 
+                    !modalContent.contains(e.target)) {
+                    console.log('Click outside modal - closing');
+                    closeEmailDialog();
+                }
+            });
+            
+            // Force close button that bypasses all checks
+            window.forceCloseModal = function() {
+                console.log('Force closing modal');
+                const dialog = document.getElementById('email-dialog');
+                dialog.style.display = 'none';
+                dialog.classList.add('hidden');
+                
+                // Reset everything
+                selectedEmails = [];
+                if (document.getElementById('test-email')) {
+                    document.getElementById('test-email').value = '';
+                }
+            };
         });
         
         // Refresh statistics
