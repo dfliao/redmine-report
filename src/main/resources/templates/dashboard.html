@@ -256,20 +256,46 @@
             
             try {
                 loadingDiv.classList.remove('hidden');
+                loadingDiv.innerHTML = '載入使用者清單中...';
                 usersListDiv.classList.add('hidden');
                 
-                const response = await fetch('/api/users');
+                const response = await fetch('/api/users', {
+                    method: 'GET',
+                    timeout: 10000  // 10 second timeout
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const result = await response.json();
                 
                 if (result.success) {
-                    users = result.data;
+                    users = result.data || [];
                     displayUsers(users);
                 } else {
-                    throw new Error(result.message || 'Failed to load users');
+                    throw new Error(result.message || 'API returned error');
                 }
             } catch (error) {
-                loadingDiv.innerHTML = `<div class="text-red-500">載入失敗: ${error.message}</div>`;
+                console.error('Load users error:', error);
+                
+                // Show error message but still allow modal to function
+                loadingDiv.innerHTML = `
+                    <div class="text-red-500 mb-4">
+                        <strong>載入失敗:</strong> ${error.message}<br>
+                        <small>您仍可使用測試Email功能</small>
+                    </div>
+                `;
+                
+                // Show a fallback message in the users list
+                usersListDiv.innerHTML = `
+                    <div class="text-gray-500 p-4 text-center">
+                        無法載入Redmine使用者清單<br>
+                        請使用上方的測試Email功能
+                    </div>
+                `;
             } finally {
+                // Always show the users list div and hide loading, even on error
                 loadingDiv.classList.add('hidden');
                 usersListDiv.classList.remove('hidden');
             }
@@ -382,6 +408,16 @@
         document.addEventListener('DOMContentLoaded', function() {
             const testEmailInput = document.getElementById('test-email');
             testEmailInput.addEventListener('input', updateRecipientsDisplay);
+            
+            // Add ESC key support to close modal
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    const modal = document.getElementById('email-dialog');
+                    if (!modal.classList.contains('hidden')) {
+                        closeEmailDialog();
+                    }
+                }
+            });
         });
         
         // Refresh statistics

@@ -303,42 +303,17 @@ class RedmineService:
     async def get_total_issue_count(self) -> int:
         """Get total number of issues"""
         try:
-            # Use a broader query that should work with most Redmine configurations
-            issues = self.redmine.issue.filter(limit=1, offset=0)
-            total = getattr(issues, 'total_count', 0)
-            logger.info(f"Total issues count: {total}")
-            return total
+            issues = self.redmine.issue.filter(status_id='*', limit=1)
+            return issues.total_count if hasattr(issues, 'total_count') else 0
         except Exception as e:
             logger.error(f"Error getting total issue count: {e}")
-            # Fallback: try to count manually if total_count fails
-            try:
-                all_issues = list(self.redmine.issue.filter(limit=100))
-                return len(all_issues)
-            except:
-                return 0
+            return 0
     
     async def get_open_issue_count(self) -> int:
         """Get count of open issues"""
         try:
-            # Get all open statuses first
-            open_statuses = []
-            try:
-                statuses = self.redmine.issue_status.all()
-                open_statuses = [s.id for s in statuses if not getattr(s, 'is_closed', False)]
-            except:
-                # Fallback to common open status ID
-                open_statuses = [1, 2, 3]  # Common open status IDs
-            
-            if open_statuses:
-                # Use specific open status IDs
-                issues = self.redmine.issue.filter(status_id='|'.join(map(str, open_statuses)), limit=1)
-            else:
-                # Fallback to 'o' for open
-                issues = self.redmine.issue.filter(status_id='o', limit=1)
-                
-            total = getattr(issues, 'total_count', 0)
-            logger.info(f"Open issues count: {total}")
-            return total
+            issues = self.redmine.issue.filter(status_id='o', limit=1)
+            return issues.total_count if hasattr(issues, 'total_count') else 0
         except Exception as e:
             logger.error(f"Error getting open issue count: {e}")
             return 0
@@ -347,10 +322,8 @@ class RedmineService:
         """Get count of issues updated today"""
         try:
             today = datetime.now().strftime('%Y-%m-%d')
-            issues = self.redmine.issue.filter(updated_on=f'>={today}', limit=1)
-            total = getattr(issues, 'total_count', 0)
-            logger.info(f"Today updated issues count: {total}")
-            return total
+            issues = self.redmine.issue.filter(updated_on=today, limit=1)
+            return issues.total_count if hasattr(issues, 'total_count') else 0
         except Exception as e:
             logger.error(f"Error getting today update count: {e}")
             return 0
@@ -370,78 +343,3 @@ class RedmineService:
         except Exception as e:
             logger.error(f"Error getting issue statuses: {e}")
             return []
-    
-    async def get_users(self) -> List[Dict]:
-        """Get all active users in Redmine"""
-        try:
-            # Try different approaches to get users
-            users_list = []
-            
-            # Method 1: Try to get users with status filter
-            try:
-                users = self.redmine.user.filter(status=1, limit=100)
-                users_list = list(users)
-                logger.info(f"Successfully loaded {len(users_list)} users with status filter")
-            except Exception as e1:
-                logger.warning(f"Method 1 failed: {e1}")
-                
-                # Method 2: Try without status filter  
-                try:
-                    users = self.redmine.user.all()
-                    users_list = list(users)[:50]  # Limit to first 50 users
-                    logger.info(f"Successfully loaded {len(users_list)} users without status filter")
-                except Exception as e2:
-                    logger.warning(f"Method 2 failed: {e2}")
-                    
-                    # Method 3: Return fallback with admin email
-                    logger.error(f"All user loading methods failed, using fallback")
-                    return [{
-                        'id': 1,
-                        'name': 'System Admin',
-                        'login': 'admin',
-                        'email': 'admin@example.com',
-                        'firstname': 'Admin',
-                        'lastname': 'User'
-                    }]
-            
-            # Process the users we got
-            result = []
-            for user in users_list:
-                try:
-                    # Handle different user object formats
-                    name = getattr(user, 'name', None)
-                    if not name:
-                        firstname = getattr(user, 'firstname', '')
-                        lastname = getattr(user, 'lastname', '')
-                        name = f"{firstname} {lastname}".strip()
-                    
-                    email = getattr(user, 'mail', '') or getattr(user, 'email', '')
-                    
-                    # Only include users with valid email
-                    if email and '@' in email:
-                        result.append({
-                            'id': getattr(user, 'id', 0),
-                            'name': name or 'Unknown User',
-                            'login': getattr(user, 'login', ''),
-                            'email': email,
-                            'firstname': getattr(user, 'firstname', ''),
-                            'lastname': getattr(user, 'lastname', '')
-                        })
-                except Exception as e:
-                    logger.warning(f"Error processing user {user}: {e}")
-                    continue
-            
-            logger.info(f"Processed {len(result)} users with valid emails")
-            return result
-            
-        except Exception as e:
-            logger.error(f"Critical error getting users: {e}")
-            # Return a fallback list with admin email
-            return [{
-                'id': 1,
-                'name': 'Test User',
-                'login': 'test',
-                'email': 'test@example.com',
-                'firstname': 'Test',
-                'lastname': 'User'
-            }]
