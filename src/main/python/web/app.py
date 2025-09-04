@@ -381,35 +381,50 @@ async def authenticate_for_password_change(
     username: str = Form(...),
     password: str = Form(...)
 ):
-    """Authenticate admin user for password change"""
+    """Authenticate user for password change"""
     try:
         if not redmine_service:
             raise HTTPException(status_code=500, detail="Redmine service not initialized")
         
-        # Authenticate with Redmine
+        # First try admin authentication
         is_admin = await redmine_service.authenticate_admin(username, password)
         
-        if not is_admin:
+        if is_admin:
+            # Admin can change any user's password
+            users = await redmine_service.get_users()
+            
             return templates.TemplateResponse("change-password.html", {
                 "request": request,
-                "authenticated": False,
-                "error": "認證失敗：請確認使用者名稱和密碼正確，且具有管理員權限",
+                "authenticated": True,
+                "is_admin": True,
+                "current_user": username,
+                "users": users,
                 "current_date": datetime.now().strftime("%Y-%m-%d"),
                 "title": "變更密碼"
             })
-        
-        # Get users list for admin
-        users = await redmine_service.get_users()
-        
-        return templates.TemplateResponse("change-password.html", {
-            "request": request,
-            "authenticated": True,
-            "is_admin": is_admin,
-            "current_user": username,
-            "users": users,
-            "current_date": datetime.now().strftime("%Y-%m-%d"),
-            "title": "變更密碼"
-        })
+        else:
+            # Try regular user authentication
+            is_valid_user = await redmine_service.authenticate_user(username, password)
+            
+            if is_valid_user:
+                # Regular user can only change own password
+                return templates.TemplateResponse("change-password.html", {
+                    "request": request,
+                    "authenticated": True,
+                    "is_admin": False,
+                    "current_user": username,
+                    "users": [],  # No user list for regular users
+                    "current_date": datetime.now().strftime("%Y-%m-%d"),
+                    "title": "變更密碼"
+                })
+            else:
+                return templates.TemplateResponse("change-password.html", {
+                    "request": request,
+                    "authenticated": False,
+                    "error": "認證失敗：請確認使用者名稱和密碼正確",
+                    "current_date": datetime.now().strftime("%Y-%m-%d"),
+                    "title": "變更密碼"
+                })
         
     except Exception as e:
         logger.error(f"Password change authentication error: {e}")

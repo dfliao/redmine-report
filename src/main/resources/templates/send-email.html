@@ -39,7 +39,8 @@
                     <div class="card-subtitle">需要 Redmine 管理員權限才能發送報表</div>
                 </div>
                 <div class="card-body">
-                    <form method="post" action="/send-email?type={{ report_type }}">
+                    <form method="post" action="/send-email">
+                        <input type="hidden" name="type" value="{{ report_type }}" />
                         <div class="form-row">
                             <div class="form-group">
                                 <label class="form-label">Redmine 使用者名稱</label>

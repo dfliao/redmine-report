@@ -628,6 +628,40 @@ class RedmineService:
             logger.error(f"Authentication error for {username}: {e}")
             return False
     
+    async def authenticate_user(self, username: str, password: str) -> bool:
+        """
+        Authenticate user with Redmine credentials (without requiring admin privileges)
+        
+        Args:
+            username: Redmine username
+            password: Redmine password
+            
+        Returns:
+            True if user credentials are valid
+        """
+        try:
+            # Create a temporary Redmine instance with username/password
+            temp_redmine = Redmine(
+                self.settings.REDMINE_URL,
+                username=username,
+                password=password,
+                timeout=getattr(self.settings, 'REDMINE_TIMEOUT', 30)
+            )
+            
+            # Try to access user info to verify credentials
+            try:
+                current_user = temp_redmine.user.get('current')
+                logger.info(f"User {username} authenticated successfully")
+                return True
+                
+            except RedmineError as e:
+                logger.error(f"Redmine authentication failed for {username}: {e}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Authentication error for {username}: {e}")
+            return False
+    
     def get_status_order(self) -> List[str]:
         """Get the ordered list of statuses for report display"""
         return self.status_order.copy()
