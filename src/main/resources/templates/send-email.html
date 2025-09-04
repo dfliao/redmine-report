@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>發送報表 - Redmine 報表系統</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', path='/css/main.css') }}" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">R</div>
+                    <span>Redmine 報表系統</span>
+                </div>
+                <nav class="nav">
+                    <a href="/" class="nav-link">首頁</a>
+                    <a href="/report1" class="nav-link">報表一</a>
+                    <a href="/report2" class="nav-link">報表二</a>
+                    <a href="#" class="nav-link active">發送Email</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Authentication Required -->
+            {% if not authenticated %}
+            <div class="card mb-8">
+                <div class="card-header">
+                    <h3 class="card-title">🔐 管理員認證</h3>
+                    <div class="card-subtitle">需要 Redmine 管理員權限才能發送報表</div>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="/send-email?type={{ report_type }}">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Redmine 使用者名稱</label>
+                                <input type="text" name="username" class="form-input" required />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Redmine 密碼</label>
+                                <input type="password" name="password" class="form-input" required />
+                            </div>
+                        </div>
+                        {% if error %}
+                        <div class="alert alert-error mb-4">{{ error }}</div>
+                        {% endif %}
+                        <button type="submit" class="btn btn-primary">
+                            驗證並繼續
+                        </button>
+                        <a href="/" class="btn btn-secondary">返回首頁</a>
+                    </form>
+                </div>
+            </div>
+            {% else %}
+            
+            <!-- Email Sending Interface -->
+            <div class="card mb-8">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        📧 發送 {{ 'Redmine 任務總欄' if report_type == '1' else '任務進度變更進度表' }}
+                    </h3>
+                    <div class="card-subtitle">選擇收件者並發送報表</div>
+                </div>
+                <div class="card-body">
+                    <form method="post" action="/send-email-execute">
+                        <input type="hidden" name="report_type" value="{{ report_type }}" />
+                        
+                        <!-- Test Email Section -->
+                        <div class="form-group">
+                            <label class="form-label">測試用Email地址</label>
+                            <input type="email" name="test_email" class="form-input" 
+                                   placeholder="請輸入您的Email進行測試" />
+                            <small class="text-sm text-gray-500">建議先輸入您自己的Email進行測試</small>
+                        </div>
+
+                        <!-- Users Selection -->
+                        <div class="form-group">
+                            <label class="form-label">選擇Redmine使用者</label>
+                            {% if users %}
+                            <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--gray-300); border-radius: var(--radius-sm); padding: var(--space-3);">
+                                {% for user in users %}
+                                <label class="user-checkbox" style="display: block; padding: 8px; border-bottom: 1px solid #eee; cursor: pointer;">
+                                    <input type="checkbox" name="user_emails" value="{{ user.email }}" 
+                                           style="margin-right: 8px;" />
+                                    {{ user.name }} ({{ user.email }})
+                                </label>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <div class="text-gray-500 p-4 text-center border rounded">
+                                <p class="mb-2">無法載入Redmine使用者清單</p>
+                                <small>請使用上方的測試Email功能</small>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                            <button type="submit" class="btn btn-primary">
+                                發送Email報表
+                            </button>
+                            <a href="/" class="btn btn-secondary">返回首頁</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Success/Error Messages -->
+            {% if success %}
+            <div class="alert alert-success">
+                ✅ {{ success }}
+            </div>
+            {% endif %}
+            
+            {% if error %}
+            <div class="alert alert-error">
+                ❌ {{ error }}
+            </div>
+            {% endif %}
+
+            {% endif %}
+        </div>
+    </main>
+
+    <!-- Add alert styles -->
+    <style>
+        .alert {
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            margin-bottom: 1rem;
+        }
+        .alert-success {
+            background-color: #d1fae5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+        .alert-error {
+            background-color: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+        .user-checkbox:hover {
+            background-color: var(--gray-50);
+        }
+    </style>
+</body>
+</html>

@@ -29,6 +29,16 @@ class RedmineService:
             key=settings.REDMINE_API_KEY,
             timeout=getattr(settings, 'REDMINE_TIMEOUT', 30)
         )
+        
+        # Define status order and aggregation logic
+        self.status_order = [
+            '執行中', '審核中', '修改中', '已完成(結案)', 
+            '進行中', '擬定中', '暫停'
+        ]
+        
+        # Statuses that are aggregated into "進行中"
+        self.active_statuses = ['執行中', '審核中', '修改中', '已完成(結案)']
+        
         logger.info(f"Initialized Redmine service for {settings.REDMINE_URL}")
     
     async def get_issue_statistics(self, start_date: date, end_date: date) -> List[Dict]:
@@ -65,20 +75,36 @@ class RedmineService:
                 
                 stats[key][status] += 1
             
-            # Convert to list format for frontend
+            # Convert to list format for frontend with status aggregation
             result = []
             for (role, assignee), statuses in stats.items():
                 row = {
                     'role': role,
                     'assignee': assignee
                 }
-                row.update(statuses)
+                
+                # Initialize all status columns with 0
+                for status in self.status_order:
+                    row[status] = 0
+                
+                # Calculate "進行中" aggregation
+                active_count = 0
+                for status_name, count in statuses.items():
+                    if status_name in self.active_statuses:
+                        active_count += count
+                        row[status_name] = count
+                    elif status_name in self.status_order:
+                        row[status_name] = count
+                
+                # Set the aggregated "進行中" count
+                row['進行中'] = active_count
+                
                 result.append(row)
             
             # Sort by role, then by assignee
             result.sort(key=lambda x: (x['role'], x['assignee']))
             
-            logger.info(f"Retrieved statistics for {len(result)} assignees")
+            logger.info(f"Retrieved statistics for {len(result)} assignees with status aggregation")
             return result
             
         except RedmineError as e:
@@ -501,3 +527,76 @@ class RedmineService:
                 'firstname': 'Test',
                 'lastname': 'User'
             }]
+    
+    async def authenticate_admin(self, username: str, password: str) -> bool:
+        """
+        Authenticate user with Redmine and check admin privileges
+        
+        Args:
+            username: Redmine username
+            password: Redmine password
+            
+        Returns:
+            True if user is authenticated and has admin privileges
+        """
+        try:
+            # Create a temporary Redmine instance with username/password
+            temp_redmine = Redmine(
+                self.settings.REDMINE_URL,
+                username=username,
+                password=password,
+                timeout=getattr(self.settings, 'REDMINE_TIMEOUT', 30)
+            )
+            
+            # Try to access user info to verify credentials
+            try:
+                current_user = temp_redmine.user.get('current')
+                logger.info(f"User {username} authenticated successfully")
+                
+                # Check if user has admin privileges
+                # Method 1: Check if user can access all projects
+                try:
+                    projects = temp_redmine.project.all()
+                    projects_list = list(projects[:5])  # Test access to first 5 projects
+                    logger.info(f"User {username} can access projects - likely admin")
+                    return True
+                except Exception as e:
+                    logger.warning(f"User {username} cannot access all projects: {e}")
+                
+                # Method 2: Check if user can access user management
+                try:
+                    users = temp_redmine.user.all()
+                    users_list = list(users[:5])  # Test access to first 5 users
+                    logger.info(f"User {username} can access users - admin confirmed")
+                    return True
+                except Exception as e:
+                    logger.warning(f"User {username} cannot access user management: {e}")
+                
+                # Method 3: Check user's admin attribute if available
+                try:
+                    admin_status = getattr(current_user, 'admin', False)
+                    if admin_status:
+                        logger.info(f"User {username} has admin flag set")
+                        return True
+                except Exception as e:
+                    logger.warning(f"Cannot check admin flag for {username}: {e}")
+                
+                # If we reach here, user is authenticated but not admin
+                logger.warning(f"User {username} authenticated but no admin privileges found")
+                return False
+                
+            except RedmineError as e:
+                logger.error(f"Redmine authentication failed for {username}: {e}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"Authentication error for {username}: {e}")
+            return False
+    
+    def get_status_order(self) -> List[str]:
+        """Get the ordered list of statuses for report display"""
+        return self.status_order.copy()
+    
+    def get_status_aggregation_note(self) -> str:
+        """Get the note explaining status aggregation logic"""
+        return "註：進行中為狀態「執行中、審核中、修改中、已完成(結案)」的加總"

@@ -147,10 +147,11 @@ class ReportGenerator:
                 th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
                 th {{ background-color: #f2f2f2; }}
                 .date-range {{ color: #666; margin-bottom: 20px; }}
+                .status-note {{ color: #666; font-size: 0.9em; margin-top: 10px; }}
             </style>
         </head>
         <body>
-            <h1>Redmine 進度報表</h1>
+            <h1>Redmine 任務總欄</h1>
             <p class="date-range">報表期間: {start_date.strftime('%Y/%m/%d')} 至 {end_date.strftime('%Y/%m/%d')}</p>
             
             <h2>1. 議題統計 (依角色與被分派者)</h2>
@@ -185,7 +186,7 @@ class ReportGenerator:
             </style>
         </head>
         <body>
-            <h1>Redmine 完成日期異動報表</h1>
+            <h1>任務進度變更進度表</h1>
             <p class="date-range">異動日期: {update_date.strftime('%Y/%m/%d')}</p>
             
             <h2>完成日期異動清單</h2>
@@ -197,30 +198,27 @@ class ReportGenerator:
         """
     
     def _build_statistics_table(self, data: List) -> str:
-        """Build HTML table for statistics data"""
+        """Build HTML table for statistics data with ordered statuses"""
         if not data:
             return "<p>無統計資料</p>"
         
-        # Get all possible statuses
-        all_statuses = set()
-        for row in data:
-            for key in row.keys():
-                if key not in ['role', 'assignee']:
-                    all_statuses.add(key)
-        all_statuses = sorted(list(all_statuses))
+        # Use predefined status order from RedmineService
+        status_order = self.redmine_service.get_status_order()
+        status_note = self.redmine_service.get_status_aggregation_note()
         
         html = "<table><thead><tr><th>角色</th><th>被分派者</th>"
-        for status in all_statuses:
+        for status in status_order:
             html += f"<th>{status}</th>"
         html += "</tr></thead><tbody>"
         
         for row in data:
             html += f"<tr><td>{row.get('role', '')}</td><td>{row.get('assignee', '')}</td>"
-            for status in all_statuses:
+            for status in status_order:
                 html += f"<td>{row.get(status, 0)}</td>"
             html += "</tr>"
         
         html += "</tbody></table>"
+        html += f"<p class='status-note'><em>{status_note}</em></p>"
         return html
     
     def _build_issues_table(self, data: List) -> str:

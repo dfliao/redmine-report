@@ -223,6 +223,140 @@ async def test_email_connection():
         logger.error(f"Email test error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/send-email", response_class=HTMLResponse)
+async def send_email_page(request: Request, type: int = 1):
+    """Send email page with admin authentication"""
+    try:
+        return templates.TemplateResponse("send-email.html", {
+            "request": request,
+            "report_type": type,
+            "authenticated": False,
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": f"發送報表 - {'Redmine 任務總欄' if type == 1 else '任務進度變更進度表'}"
+        })
+    except Exception as e:
+        logger.error(f"Send email page error: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": str(e),
+            "title": "錯誤"
+        })
+
+@app.post("/send-email", response_class=HTMLResponse)
+async def authenticate_admin(
+    request: Request,
+    type: int = Form(...),
+    username: str = Form(...),
+    password: str = Form(...)
+):
+    """Authenticate admin user with Redmine credentials"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        # Authenticate with Redmine
+        is_admin = await redmine_service.authenticate_admin(username, password)
+        
+        if not is_admin:
+            return templates.TemplateResponse("send-email.html", {
+                "request": request,
+                "report_type": type,
+                "authenticated": False,
+                "error": "認證失敗：請確認使用者名稱和密碼正確，且具有管理員權限",
+                "current_date": datetime.now().strftime("%Y-%m-%d"),
+                "title": f"發送報表 - {'Redmine 任務總欄' if type == 1 else '任務進度變更進度表'}"
+            })
+        
+        # Get users list for authenticated admin
+        users = await redmine_service.get_users()
+        
+        return templates.TemplateResponse("send-email.html", {
+            "request": request,
+            "report_type": type,
+            "authenticated": True,
+            "users": users,
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": f"發送報表 - {'Redmine 任務總欄' if type == 1 else '任務進度變更進度表'}"
+        })
+        
+    except Exception as e:
+        logger.error(f"Admin authentication error: {e}")
+        return templates.TemplateResponse("send-email.html", {
+            "request": request,
+            "report_type": type,
+            "authenticated": False,
+            "error": f"認證過程發生錯誤：{str(e)}",
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": f"發送報表 - {'Redmine 任務總欄' if type == 1 else '任務進度變更進度表'}"
+        })
+
+@app.post("/send-email-execute", response_class=HTMLResponse)
+async def execute_send_email(
+    request: Request,
+    report_type: int = Form(...),
+    test_email: Optional[str] = Form(None),
+    user_emails: Optional[List[str]] = Form(None)
+):
+    """Execute email sending to selected recipients"""
+    try:
+        if not report_generator:
+            raise HTTPException(status_code=500, detail="Report generator not initialized")
+        
+        # Collect all recipients
+        recipients = []
+        
+        # Add test email if provided
+        if test_email and test_email.strip():
+            recipients.append(test_email.strip())
+        
+        # Add selected user emails
+        if user_emails:
+            recipients.extend(user_emails)
+        
+        if not recipients:
+            raise HTTPException(status_code=400, detail="請至少選擇一個收件者")
+        
+        # Remove duplicates
+        recipients = list(set(recipients))
+        
+        logger.info(f"Sending report {report_type} to {len(recipients)} recipients: {recipients}")
+        
+        # Send report
+        if report_type == 1:
+            result = await report_generator.generate_and_send_report1(recipients=recipients)
+        elif report_type == 2:
+            result = await report_generator.generate_and_send_report2(recipients=recipients)
+        else:
+            raise HTTPException(status_code=400, detail="無效的報表類型")
+        
+        # Get users list again for the success page
+        users = await redmine_service.get_users() if redmine_service else []
+        
+        return templates.TemplateResponse("send-email.html", {
+            "request": request,
+            "report_type": report_type,
+            "authenticated": True,
+            "users": users,
+            "success": f"報表已成功發送給 {len(recipients)} 位收件者：{', '.join(recipients)}",
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": f"發送報表 - {'Redmine 任務總欄' if report_type == 1 else '任務進度變更進度表'}"
+        })
+        
+    except Exception as e:
+        logger.error(f"Execute send email error: {e}")
+        # Get users list again for error page
+        users = await redmine_service.get_users() if redmine_service else []
+        
+        return templates.TemplateResponse("send-email.html", {
+            "request": request,
+            "report_type": report_type,
+            "authenticated": True,
+            "users": users,
+            "error": f"發送Email時發生錯誤：{str(e)}",
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": f"發送報表 - {'Redmine 任務總欄' if report_type == 1 else '任務進度變更進度表'}"
+        })
+
 @app.post("/api/send-report")
 async def send_report_email(
     report_type: int = Form(...),
