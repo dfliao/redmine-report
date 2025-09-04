@@ -11,12 +11,12 @@ services:
       - REDMINE_URL=${REDMINE_URL:-http://192.168.0.222:3000}
       - REDMINE_API_KEY=${REDMINE_API_KEY}
 
-      # Email Configuration
-      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      # Email Configuration (Redmine-compatible settings)
+      - SMTP_HOST=${SMTP_HOST:-192.168.0.222}
       - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
-      - EMAIL_FROM=${EMAIL_FROM}
+      - SMTP_USERNAME=${SMTP_USERNAME:-GOPEAK@mail.gogopeaks.com}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-5w~IDW}
+      - EMAIL_FROM=${EMAIL_FROM:-GOPEAK@mail.gogopeaks.com}
 
       # Report Configuration
       - REPORT_DAYS=${REPORT_DAYS:-14}

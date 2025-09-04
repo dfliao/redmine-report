@@ -42,91 +42,68 @@ class EmailService:
             logger.info(f"SMTP Settings - Host: {self.settings.SMTP_HOST}, Port: {self.settings.SMTP_PORT}")
             logger.info(f"From: {self.settings.EMAIL_FROM}")
             
-            # Try different SMTP approaches
-            success = False
-            
-            # Method 1: TLS (Port 587)
-            if not success and self.settings.SMTP_PORT == 587:
-                try:
-                    logger.info("Trying SMTP with STARTTLS (port 587)")
-                    context = ssl.create_default_context()
+            # Use the same SMTP configuration as Redmine
+            # Port 587 with STARTTLS, login authentication, no SSL verification
+            try:
+                logger.info("Using Redmine-compatible SMTP settings (Port 587 + STARTTLS)")
+                
+                # Create SSL context with relaxed verification (same as Redmine)
+                context = ssl.create_default_context()
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE  # Same as openssl_verify_mode: none
+                
+                with smtplib.SMTP(self.settings.SMTP_HOST, self.settings.SMTP_PORT, timeout=30) as server:
+                    server.set_debuglevel(1)  # Enable debug output
                     
-                    with smtplib.SMTP(self.settings.SMTP_HOST, self.settings.SMTP_PORT, timeout=30) as server:
-                        server.set_debuglevel(1)  # Enable debug output
-                        server.starttls(context=context)
-                        
-                        if hasattr(self.settings, 'SMTP_USERNAME') and self.settings.SMTP_USERNAME:
-                            logger.info(f"Logging in with username: {self.settings.SMTP_USERNAME}")
-                            server.login(self.settings.SMTP_USERNAME, self.settings.SMTP_PASSWORD)
-                        
-                        server.sendmail(
-                            self.settings.EMAIL_FROM,
-                            recipients,
-                            message.as_string()
-                        )
-                        success = True
-                        logger.info("STARTTLS method succeeded")
-                        
-                except Exception as e1:
-                    logger.warning(f"STARTTLS method failed: {e1}")
-            
-            # Method 2: SSL (Port 465)  
-            if not success:
-                try:
-                    logger.info("Trying SMTP with SSL (port 465)")
-                    context = ssl.create_default_context()
+                    # Enable STARTTLS (same as enable_starttls_auto: true)
+                    server.starttls(context=context)
+                    logger.info("STARTTLS enabled")
                     
-                    smtp_port = 465 if self.settings.SMTP_PORT == 587 else self.settings.SMTP_PORT
+                    # Login authentication (same as authentication: :login)
+                    if hasattr(self.settings, 'SMTP_USERNAME') and self.settings.SMTP_USERNAME:
+                        logger.info(f"Logging in with username: {self.settings.SMTP_USERNAME}")
+                        server.login(self.settings.SMTP_USERNAME, self.settings.SMTP_PASSWORD)
+                        logger.info("SMTP login successful")
                     
-                    with smtplib.SMTP_SSL(self.settings.SMTP_HOST, smtp_port, context=context, timeout=30) as server:
-                        server.set_debuglevel(1)  # Enable debug output
-                        
-                        if hasattr(self.settings, 'SMTP_USERNAME') and self.settings.SMTP_USERNAME:
-                            logger.info(f"Logging in with username: {self.settings.SMTP_USERNAME}")
-                            server.login(self.settings.SMTP_USERNAME, self.settings.SMTP_PASSWORD)
-                        
-                        server.sendmail(
-                            self.settings.EMAIL_FROM,
-                            recipients,
-                            message.as_string()
-                        )
-                        success = True
-                        logger.info("SSL method succeeded")
-                        
-                except Exception as e2:
-                    logger.warning(f"SSL method failed: {e2}")
-            
-            # Method 3: No encryption (Port 25)
-            if not success:
+                    # Send email
+                    server.sendmail(
+                        self.settings.EMAIL_FROM,
+                        recipients,
+                        message.as_string()
+                    )
+                    
+                    logger.info(f"Successfully sent email to {len(recipients)} recipients using Redmine-compatible settings")
+                    return True
+                    
+            except Exception as e:
+                logger.error(f"Redmine-compatible SMTP failed: {e}")
+                
+                # Fallback: Try without STARTTLS for local MailPlus
                 try:
-                    logger.info("Trying SMTP without encryption (port 25)")
+                    logger.info("Trying fallback: Direct SMTP without STARTTLS")
                     
                     with smtplib.SMTP(self.settings.SMTP_HOST, 25, timeout=30) as server:
-                        server.set_debuglevel(1)  # Enable debug output
+                        server.set_debuglevel(1)
                         
-                        # Try login if credentials provided
+                        # Try without STARTTLS for local delivery
                         if hasattr(self.settings, 'SMTP_USERNAME') and self.settings.SMTP_USERNAME:
                             try:
                                 server.login(self.settings.SMTP_USERNAME, self.settings.SMTP_PASSWORD)
                             except Exception:
-                                logger.info("Login failed or not required for port 25")
+                                logger.info("Login not required for local SMTP")
                         
                         server.sendmail(
                             self.settings.EMAIL_FROM,
                             recipients,
                             message.as_string()
                         )
-                        success = True
-                        logger.info("No encryption method succeeded")
                         
-                except Exception as e3:
-                    logger.warning(f"No encryption method failed: {e3}")
-            
-            if success:
-                logger.info(f"Successfully sent email to {len(recipients)} recipients")
-                return True
-            else:
-                raise Exception("All SMTP methods failed")
+                        logger.info("Fallback method succeeded")
+                        return True
+                        
+                except Exception as e2:
+                    logger.error(f"All SMTP methods failed. Primary error: {e}, Fallback error: {e2}")
+                    return False
             
         except Exception as e:
             logger.error(f"Failed to send email after trying all methods: {e}")
