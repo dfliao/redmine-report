@@ -235,10 +235,22 @@ class ReportGenerator:
         <tbody>
         """
         
+        current_project = ''
+        project_index = 0
+        
         for row in data:
+            # Check if project changed
+            project_name = row.get('project', '')
+            if current_project != project_name:
+                current_project = project_name
+                project_index += 1
+            
+            # Alternate background color based on project
+            bg_color = '#f8f9fa' if project_index % 2 == 0 else '#ffffff'
+            
             html += f"""
-            <tr>
-                <td>{row.get('project', '')}</td>
+            <tr style="background-color: {bg_color};">
+                <td>{project_name}</td>
                 <td>{row.get('priority', '')}</td>
                 <td>{row.get('tracker', '')}</td>
                 <td>{row.get('assigned_to', '')}</td>

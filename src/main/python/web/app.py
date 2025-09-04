@@ -291,27 +291,29 @@ async def authenticate_admin(
         })
 
 @app.post("/send-email-execute", response_class=HTMLResponse)
-async def execute_send_email(
-    request: Request,
-    report_type: int = Form(...),
-    test_email: Optional[str] = Form(None),
-    user_emails: Optional[List[str]] = Form(None)
-):
+async def execute_send_email(request: Request):
     """Execute email sending to selected recipients"""
     try:
         if not report_generator:
             raise HTTPException(status_code=500, detail="Report generator not initialized")
         
+        # Parse form data manually to handle multiple checkboxes
+        form_data = await request.form()
+        
+        report_type = int(form_data.get("report_type", 1))
+        test_email = form_data.get("test_email", "").strip()
+        
         # Collect all recipients
         recipients = []
         
         # Add test email if provided
-        if test_email and test_email.strip():
-            recipients.append(test_email.strip())
+        if test_email:
+            recipients.append(test_email)
         
-        # Add selected user emails
+        # Get all selected user emails (multiple checkboxes with same name)
+        user_emails = form_data.getlist("user_emails")
         if user_emails:
-            recipients.extend(user_emails)
+            recipients.extend([email.strip() for email in user_emails if email.strip()])
         
         if not recipients:
             raise HTTPException(status_code=400, detail="請至少選擇一個收件者")

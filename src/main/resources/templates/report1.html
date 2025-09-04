@@ -250,12 +250,24 @@
             }
             
             let html = '';
+            let currentProject = '';
+            let projectIndex = 0;
+            
             data.forEach(issue => {
                 const priorityBadge = getPriorityBadge(issue.priority);
                 const statusBadge = getStatusBadge(issue.status);
                 
+                // Check if project changed
+                if (currentProject !== (issue.project || '')) {
+                    currentProject = issue.project || '';
+                    projectIndex++;
+                }
+                
+                // Alternate background color based on project
+                const bgClass = projectIndex % 2 === 0 ? 'project-bg-even' : 'project-bg-odd';
+                
                 html += `
-                    <tr>
+                    <tr class="${bgClass}">
                         <td class="text-sm">${issue.project || ''}</td>
                         <td class="text-sm">${issue.tracker || ''}</td>
                         <td>${statusBadge}</td>
@@ -333,5 +345,21 @@
             }
         }
     </script>
+    
+    <!-- Project Background Colors -->
+    <style>
+        .project-bg-even {
+            background-color: #f8f9fa !important;
+        }
+        .project-bg-odd {
+            background-color: #ffffff !important;
+        }
+        
+        /* Ensure badges and buttons maintain their colors */
+        .project-bg-even .badge,
+        .project-bg-odd .badge {
+            opacity: 1;
+        }
+    </style>
 </body>
 </html>
