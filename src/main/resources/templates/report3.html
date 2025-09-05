@@ -21,9 +21,9 @@
                 </div>
                 <nav class="nav">
                     <a href="/" class="nav-link">首頁</a>
-                    <a href="/report1" class="nav-link active">報表一</a>
+                    <a href="/report1" class="nav-link">報表一</a>
                     <a href="/report2" class="nav-link">報表二</a>
-                    <a href="/report3" class="nav-link">報表三</a>
+                    <a href="/report3" class="nav-link active">報表三</a>
                 </nav>
             </div>
         </div>
@@ -34,9 +34,9 @@
         <div class="container">
             <!-- Page Header -->
             <div class="mb-8">
-                <h1>📊 報表一：議題進度統計</h1>
+                <h1>📋 報表三：專項用專案統計</h1>
                 <p class="text-sm">
-                    統計指定天數內的議題進度和詳細清單
+                    專門針對「專項用」專案及其子專案的議題進度統計和詳細清單
                 </p>
             </div>
 
@@ -64,7 +64,7 @@
                                     重新整理
                                 </button>
                                 <button onclick="exportReport()" class="btn btn-secondary">匯出 Excel</button>
-                                <button onclick="sendReport(1)" class="btn btn-success">發送 Email</button>
+                                <button onclick="sendReport(3)" class="btn btn-success">發送 Email</button>
                             </div>
                         </div>
                     </div>
@@ -75,7 +75,7 @@
             <div id="loading-state" class="card mb-6 hidden">
                 <div class="card-body text-center">
                     <div class="spinner" style="margin: 0 auto 1rem;"></div>
-                    <p>正在載入報表資料...</p>
+                    <p>正在載入專項用專案報表資料...</p>
                 </div>
             </div>
 
@@ -87,10 +87,10 @@
                             <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z"/>
                             <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z"/>
                         </svg>
-                        表格一：議題統計（依被分派者和狀態）
+                        表格一：專項用專案議題統計（依被分派者和狀態）
                     </h3>
                     <div class="card-subtitle">
-                        統計期間：<span id="date-range">{{ days }} 天內</span>
+                        統計期間：<span id="date-range">{{ days }} 天內</span> | 專案範圍：專項用及其子專案
                     </div>
                 </div>
                 <div class="card-body">
@@ -98,15 +98,15 @@
                         <table class="table" id="statistics-table">
                             <thead>
                                 <tr>
+                                    <th>角色</th>
                                     <th>被分派者</th>
-                                    <th>擬定中</th>
                                     <th>執行中</th>
-                                    <th>待審核</th>
-                                    <th>修正中</th>
-                                    <th>已回應</th>
-                                    <th>已完成</th>
+                                    <th>審核中</th>
+                                    <th>修改中</th>
+                                    <th>已完成(結案)</th>
+                                    <th>進行中</th>
+                                    <th>擬定中</th>
                                     <th>暫停</th>
-                                    <th>取消</th>
                                     <th>總計</th>
                                 </tr>
                             </thead>
@@ -117,6 +117,9 @@
                             </tbody>
                         </table>
                     </div>
+                    <p class="text-sm text-gray-500 mt-4">
+                        <em>註：進行中為狀態「執行中、審核中、修改中、已完成(結案)」的加總</em>
+                    </p>
                 </div>
             </div>
 
@@ -127,10 +130,10 @@
                         <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
                             <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clip-rule="evenodd"/>
                         </svg>
-                        表格二：詳細議題清單
+                        表格二：專項用專案詳細議題清單
                     </h3>
                     <div class="card-subtitle">
-                        完成日期在指定範圍內的進行中議題
+                        完成日期在指定範圍內的專項用專案議題
                     </div>
                 </div>
                 <div class="card-body">
@@ -188,7 +191,7 @@
             spinner.classList.remove('hidden');
             
             try {
-                const response = await fetch(`/api/report1/data?days=${days}`);
+                const response = await fetch(`/api/report3/data?days=${days}`);
                 const result = await response.json();
                 
                 if (result.success) {
@@ -200,7 +203,7 @@
                     throw new Error(result.message || '載入失敗');
                 }
             } catch (error) {
-                alert('❌ 載入報表失敗：' + error.message);
+                alert('❌ 載入專項用專案報表失敗：' + error.message);
             } finally {
                 loadingState.classList.add('hidden');
                 spinner.classList.add('hidden');
@@ -210,27 +213,31 @@
         // Update statistics table (Table 1)
         function updateTable1(data) {
             const tbody = document.querySelector('#statistics-table tbody');
-            const statuses = ['擬定中', '執行中', '待審核', '修正中', '已回應', '已完成', '暫停', '取消'];
+            const statuses = ['執行中', '審核中', '修改中', '已完成(結案)', '進行中', '擬定中', '暫停'];
             
             if (!data || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center">無資料</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" class="text-center">無專項用專案資料</td></tr>';
                 return;
             }
             
             let html = '';
             data.forEach(row => {
+                const role = row.role || '未知角色';
                 const assignee = row.assignee || '未分派';
                 let total = 0;
                 let statusCells = '';
                 
                 statuses.forEach(status => {
                     const count = row[status] || 0;
-                    total += count;
+                    if (status !== '進行中') { // Don't count aggregated status in total
+                        total += count;
+                    }
                     statusCells += `<td class="text-center">${count}</td>`;
                 });
                 
                 html += `
                     <tr>
+                        <td class="font-bold">${role}</td>
                         <td class="font-bold">${assignee}</td>
                         ${statusCells}
                         <td class="text-center font-bold">${total}</td>
@@ -246,7 +253,7 @@
             const tbody = document.querySelector('#issues-table tbody');
             
             if (!data || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center">無資料</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center">無專項用專案議題資料</td></tr>';
                 return;
             }
             
@@ -339,7 +346,7 @@
         // Send report via email
         async function sendReport(reportType) {
             try {
-                // Instead of using old API, redirect to new send-email page
+                // Redirect to new send-email page
                 window.location.href = `/send-email?type=${reportType}`;
             } catch (error) {
                 alert('❌ 發送失敗：' + error.message);

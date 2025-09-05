@@ -106,6 +106,50 @@ class ReportGenerator:
             logger.error(f"Failed to generate Report 2: {e}")
             raise
     
+    async def generate_and_send_report3(self, recipients: Optional[List[str]] = None) -> dict:
+        """Generate and send Report 3 - Special Projects (專項用)"""
+        try:
+            logger.info("Starting Report 3 generation")
+            
+            # Get date range (default: last 14 days)
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=getattr(self.settings, 'REPORT_DAYS', 14))
+            
+            # Generate report data for special projects
+            table1_data = await self.redmine_service.get_special_project_statistics(start_date, end_date)
+            table2_data = await self.redmine_service.get_special_project_issue_list(start_date, end_date)
+            
+            # Generate HTML report
+            html_content = self._generate_report3_html(table1_data, table2_data, start_date, end_date)
+            
+            # Determine recipients
+            if not recipients:
+                # Get all Redmine users as default recipients
+                recipients = await self._get_default_recipients(table1_data + table2_data)
+            
+            # Send email
+            subject = f"專項用專案報表 - {start_date.strftime('%Y/%m/%d')} 至 {end_date.strftime('%Y/%m/%d')}"
+            success = await self.email_service.send_report_email(subject, html_content, recipients)
+            
+            result = {
+                "status": "success" if success else "failed",
+                "message": f"Report 3 {'sent successfully' if success else 'failed to send'}",
+                "recipients": recipients,
+                "data_summary": {
+                    "assignee_count": len(table1_data),
+                    "issue_count": len(table2_data),
+                    "date_range": f"{start_date} to {end_date}",
+                    "project_type": "專項用專案"
+                }
+            }
+            
+            logger.info(f"Report 3 generation completed: {result['status']}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to generate Report 3: {e}")
+            raise
+    
     async def _get_default_recipients(self, data: List) -> List[str]:
         """Get all Redmine users as default recipients"""
         try:
@@ -189,6 +233,43 @@ class ReportGenerator:
             
             <h2>完成日期異動清單</h2>
             {changes_html}
+            
+            <p><small>此報表由 Redmine 自動報表系統生成於 {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}</small></p>
+        </body>
+        </html>
+        """
+    
+    def _generate_report3_html(self, table1_data: List, table2_data: List, start_date: date, end_date: date) -> str:
+        """Generate HTML content for Report 3 - Special Projects"""
+        # Build statistics table
+        table1_html = self._build_statistics_table(table1_data)
+        
+        # Build issues list table
+        table2_html = self._build_issues_table(table2_data)
+        
+        return f"""
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                h1, h2 {{ color: #333; }}
+                table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                th {{ background-color: #f2f2f2; }}
+                .date-range {{ color: #666; margin-bottom: 20px; }}
+                .status-note {{ color: #666; font-size: 0.9em; margin-top: 10px; }}
+            </style>
+        </head>
+        <body>
+            <h1>專項用專案報表</h1>
+            <p class="date-range">報表期間: {start_date.strftime('%Y/%m/%d')} 至 {end_date.strftime('%Y/%m/%d')}</p>
+            
+            <h2>1. 專項用專案議題統計 (依角色與被分派者)</h2>
+            {table1_html}
+            
+            <h2>2. 專項用專案詳細議題清單</h2>
+            {table2_html}
             
             <p><small>此報表由 Redmine 自動報表系統生成於 {datetime.now().strftime('%Y/%m/%d %H:%M:%S')}</small></p>
         </body>
