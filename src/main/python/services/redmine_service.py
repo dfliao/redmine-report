@@ -808,3 +808,62 @@ class RedmineService:
         except Exception as e:
             logger.error(f"Error in get_special_project_issue_list: {e}")
             raise
+    
+    async def get_gantt_chart_data(self, start_date: date, end_date: date) -> List[Dict]:
+        """Get Gantt chart data for construction/installation projects (excluding 專項用)"""
+        try:
+            logger.info(f"Getting Gantt chart data from {start_date} to {end_date}")
+            
+            # Get all open issues excluding 專項用 projects
+            issues = self.redmine.issue.filter(
+                status_id='open'
+            )
+            
+            result = []
+            for issue in issues:
+                # Exclude 專項用 projects (normal exclusion logic)
+                if self._should_exclude_issue(issue):
+                    continue
+                
+                # Format issue data for Gantt chart display
+                gantt_data = self._format_gantt_issue_data(issue)
+                if gantt_data:
+                    result.append(gantt_data)
+            
+            # Sort by project, then by start_date
+            result.sort(key=lambda x: (x.get('project', ''), x.get('start_date', '')))
+            
+            logger.info(f"Found {len(result)} issues for Gantt chart")
+            return result
+            
+        except RedmineError as e:
+            logger.error(f"Redmine API error in get_gantt_chart_data: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in get_gantt_chart_data: {e}")
+            raise
+    
+    def _format_gantt_issue_data(self, issue) -> dict:
+        """Format issue data specifically for Gantt chart display"""
+        try:
+            # Skip issues without both start_date and due_date
+            if not (hasattr(issue, 'start_date') and hasattr(issue, 'due_date') and 
+                   issue.start_date and issue.due_date):
+                return None
+            
+            return {
+                'id': issue.id,
+                'project': getattr(issue.project, 'name', '') if hasattr(issue, 'project') else '',
+                'tracker': getattr(issue.tracker, 'name', '') if hasattr(issue, 'tracker') else '',
+                'subject': getattr(issue, 'subject', ''),
+                'status': getattr(issue.status, 'name', '') if hasattr(issue, 'status') else '',
+                'priority': getattr(issue.priority, 'name', '') if hasattr(issue, 'priority') else '',
+                'assigned_to': getattr(issue.assigned_to, 'name', '') if hasattr(issue, 'assigned_to') else '未分派',
+                'start_date': str(issue.start_date) if issue.start_date else '',
+                'due_date': str(issue.due_date) if issue.due_date else '',
+                'done_ratio': getattr(issue, 'done_ratio', 0),
+                'updated_on': issue.updated_on.strftime('%Y-%m-%d') if hasattr(issue, 'updated_on') and issue.updated_on else ''
+            }
+        except Exception as e:
+            logger.warning(f"Error formatting Gantt issue data for issue {getattr(issue, 'id', 'unknown')}: {e}")
+            return None

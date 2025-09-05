@@ -21,10 +21,10 @@
                 </div>
                 <nav class="nav">
                     <a href="/" class="nav-link">首頁</a>
-                    <a href="/report1" class="nav-link active">報表一</a>
+                    <a href="/report1" class="nav-link">報表一</a>
                     <a href="/report2" class="nav-link">報表二</a>
                     <a href="/report3" class="nav-link">報表三</a>
-                    <a href="/report4" class="nav-link">報表四</a>
+                    <a href="/report4" class="nav-link active">報表四</a>
                 </nav>
             </div>
         </div>
@@ -35,9 +35,9 @@
         <div class="container">
             <!-- Page Header -->
             <div class="mb-8">
-                <h1>📊 報表一：議題進度統計</h1>
+                <h1>📊 報表四：甘特圖進度追蹤</h1>
                 <p class="text-sm">
-                    統計指定天數內的議題進度和詳細清單
+                    施工/安裝進度甘特圖 (排除專項用專案)
                 </p>
             </div>
 
@@ -51,10 +51,10 @@
                         <div class="form-group">
                             <label class="form-label" for="days-input">統計天數</label>
                             <select class="form-select" id="days-input" onchange="updateReport()">
-                                <option value="7">7 天</option>
-                                <option value="14" selected>14 天</option>
-                                <option value="30">30 天</option>
+                                <option value="15">15 天</option>
+                                <option value="30" selected>30 天</option>
                                 <option value="60">60 天</option>
+                                <option value="90">90 天</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -65,7 +65,6 @@
                                     重新整理
                                 </button>
                                 <button onclick="exportReport()" class="btn btn-secondary">匯出 Excel</button>
-                                <button onclick="sendReport(1)" class="btn btn-success">發送 Email</button>
                             </div>
                         </div>
                     </div>
@@ -76,78 +75,43 @@
             <div id="loading-state" class="card mb-6 hidden">
                 <div class="card-body text-center">
                     <div class="spinner" style="margin: 0 auto 1rem;"></div>
-                    <p>正在載入報表資料...</p>
+                    <p>正在載入甘特圖資料...</p>
                 </div>
             </div>
 
-            <!-- Table 1: Issue Statistics by Assignee and Status -->
-            <div class="card mb-8" id="table1-container">
+            <!-- Gantt Chart Placeholder -->
+            <div class="card mb-8" id="gantt-container">
                 <div class="card-header">
                     <h3 class="card-title">
                         <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z"/>
-                            <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z"/>
+                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
                         </svg>
-                        表格一：議題統計（依被分派者和狀態）
+                        施工/安裝甘特圖
                     </h3>
                     <div class="card-subtitle">
-                        統計期間：<span id="date-range">{{ days }} 天內</span>
+                        統計期間：<span id="date-range">{{ days }} 天內</span> | 排除專項用專案
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="table-container">
-                        <table class="table" id="statistics-table">
-                            <thead>
-                                <tr>
-                                    <th>被分派者</th>
-                                    <th>擬定中</th>
-                                    <th>執行中</th>
-                                    <th>待審核</th>
-                                    <th>修正中</th>
-                                    <th>已回應</th>
-                                    <th>已完成</th>
-                                    <th>暫停</th>
-                                    <th>取消</th>
-                                    <th>總計</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td colspan="10" class="text-center">載入中...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <div class="alert alert-info mb-4">
+                        <strong>ℹ️ 開發中功能</strong><br>
+                        甘特圖視覺化功能正在開發中。目前顯示基本任務列表，未來將升級為完整的甘特圖介面。
                     </div>
-                </div>
-            </div>
-
-            <!-- Table 2: Detailed Issue List -->
-            <div class="card" id="table2-container">
-                <div class="card-header">
-                    <h3 class="card-title">
-                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clip-rule="evenodd"/>
-                        </svg>
-                        表格二：詳細議題清單
-                    </h3>
-                    <div class="card-subtitle">
-                        完成日期在指定範圍內的進行中議題
-                    </div>
-                </div>
-                <div class="card-body">
+                    
+                    <!-- Basic Task List (Placeholder for Gantt Chart) -->
                     <div class="table-container">
-                        <table class="table" id="issues-table">
+                        <table class="table" id="gantt-table">
                             <thead>
                                 <tr>
                                     <th>專案</th>
                                     <th>追蹤標籤</th>
+                                    <th>主旨</th>
                                     <th>狀態</th>
                                     <th>優先權</th>
-                                    <th>主旨</th>
                                     <th>被分派者</th>
-                                    <th>完工日期</th>
                                     <th>開始日期</th>
-                                    <th>更新日期</th>
+                                    <th>完成日期</th>
+                                    <th>完成率</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -189,65 +153,30 @@
             spinner.classList.remove('hidden');
             
             try {
-                const response = await fetch(`/api/report1/data?days=${days}`);
+                const response = await fetch(`/api/report4/data?days=${days}`);
                 const result = await response.json();
                 
                 if (result.success) {
                     currentData = result.data;
-                    updateTable1(result.data.table1);
-                    updateTable2(result.data.table2);
+                    updateGanttTable(result.data.gantt_data);
                     updateDateRange(result.data.date_range);
                 } else {
                     throw new Error(result.message || '載入失敗');
                 }
             } catch (error) {
-                alert('❌ 載入報表失敗：' + error.message);
+                alert('❌ 載入甘特圖資料失敗：' + error.message);
             } finally {
                 loadingState.classList.add('hidden');
                 spinner.classList.add('hidden');
             }
         }
         
-        // Update statistics table (Table 1)
-        function updateTable1(data) {
-            const tbody = document.querySelector('#statistics-table tbody');
-            const statuses = ['擬定中', '執行中', '待審核', '修正中', '已回應', '已完成', '暫停', '取消'];
+        // Update Gantt table (placeholder for actual Gantt chart)
+        function updateGanttTable(data) {
+            const tbody = document.querySelector('#gantt-table tbody');
             
             if (!data || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center">無資料</td></tr>';
-                return;
-            }
-            
-            let html = '';
-            data.forEach(row => {
-                const assignee = row.assignee || '未分派';
-                let total = 0;
-                let statusCells = '';
-                
-                statuses.forEach(status => {
-                    const count = row[status] || 0;
-                    total += count;
-                    statusCells += `<td class="text-center">${count}</td>`;
-                });
-                
-                html += `
-                    <tr>
-                        <td class="font-bold">${assignee}</td>
-                        ${statusCells}
-                        <td class="text-center font-bold">${total}</td>
-                    </tr>
-                `;
-            });
-            
-            tbody.innerHTML = html;
-        }
-        
-        // Update issues table (Table 2)
-        function updateTable2(data) {
-            const tbody = document.querySelector('#issues-table tbody');
-            
-            if (!data || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" class="text-center">無資料</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center">無甘特圖資料</td></tr>';
                 return;
             }
             
@@ -255,13 +184,14 @@
             let currentProject = '';
             let projectIndex = 0;
             
-            data.forEach(issue => {
-                const priorityBadge = getPriorityBadge(issue.priority);
-                const statusBadge = getStatusBadge(issue.status);
+            data.forEach(task => {
+                const priorityBadge = getPriorityBadge(task.priority);
+                const statusBadge = getStatusBadge(task.status);
+                const progressBar = getProgressBar(task.done_ratio);
                 
                 // Check if project changed
-                if (currentProject !== (issue.project || '')) {
-                    currentProject = issue.project || '';
+                if (currentProject !== (task.project || '')) {
+                    currentProject = task.project || '';
                     projectIndex++;
                 }
                 
@@ -270,15 +200,15 @@
                 
                 html += `
                     <tr class="${bgClass}">
-                        <td class="text-sm">${issue.project || ''}</td>
-                        <td class="text-sm">${issue.tracker || ''}</td>
+                        <td class="text-sm">${task.project || ''}</td>
+                        <td class="text-sm">${task.tracker || ''}</td>
+                        <td class="text-sm" style="max-width: 300px; word-wrap: break-word;">${task.subject || ''}</td>
                         <td>${statusBadge}</td>
                         <td>${priorityBadge}</td>
-                        <td class="text-sm" style="max-width: 300px; word-wrap: break-word;">${issue.subject || ''}</td>
-                        <td class="text-sm">${issue.assigned_to || '未分派'}</td>
-                        <td class="text-sm font-mono">${issue.due_date || ''}</td>
-                        <td class="text-sm font-mono">${issue.start_date || ''}</td>
-                        <td class="text-sm font-mono">${issue.updated_on || ''}</td>
+                        <td class="text-sm">${task.assigned_to || '未分派'}</td>
+                        <td class="text-sm font-mono">${task.start_date || ''}</td>
+                        <td class="text-sm font-mono">${task.due_date || ''}</td>
+                        <td>${progressBar}</td>
                     </tr>
                 `;
             });
@@ -322,10 +252,27 @@
             return `<span class="badge ${badgeClass}">${status || ''}</span>`;
         }
         
+        // Get progress bar HTML
+        function getProgressBar(doneRatio) {
+            const percentage = doneRatio || 0;
+            const colorClass = percentage >= 80 ? 'bg-success' : 
+                             percentage >= 50 ? 'bg-primary' : 
+                             percentage >= 25 ? 'bg-warning' : 'bg-secondary';
+                             
+            return `
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <div style="width: 60px; height: 8px; background-color: #e5e7eb; border-radius: 4px; overflow: hidden;">
+                        <div class="${colorClass}" style="width: ${percentage}%; height: 100%; border-radius: 4px;"></div>
+                    </div>
+                    <span class="text-sm">${percentage}%</span>
+                </div>
+            `;
+        }
+        
         // Export report to Excel
         async function exportReport() {
             if (!currentData) {
-                alert('請先載入報表資料');
+                alert('請先載入甘特圖資料');
                 return;
             }
             
@@ -334,16 +281,6 @@
                 alert('Excel 匯出功能開發中...');
             } catch (error) {
                 alert('❌ 匯出失敗：' + error.message);
-            }
-        }
-        
-        // Send report via email
-        async function sendReport(reportType) {
-            try {
-                // Instead of using old API, redirect to new send-email page
-                window.location.href = `/send-email?type=${reportType}`;
-            } catch (error) {
-                alert('❌ 發送失敗：' + error.message);
             }
         }
     </script>
@@ -361,6 +298,25 @@
         .project-bg-even .badge,
         .project-bg-odd .badge {
             opacity: 1;
+        }
+        
+        /* Progress bar colors */
+        .bg-success { background-color: #22c55e !important; }
+        .bg-primary { background-color: #3b82f6 !important; }
+        .bg-warning { background-color: #f59e0b !important; }
+        .bg-secondary { background-color: #6b7280 !important; }
+        
+        /* Info alert styling */
+        .alert {
+            padding: 1rem;
+            border-radius: 0.375rem;
+            border: 1px solid transparent;
+        }
+        
+        .alert-info {
+            background-color: #dbeafe;
+            border-color: #93c5fd;
+            color: #1e40af;
         }
     </style>
 </body>

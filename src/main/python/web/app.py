@@ -234,6 +234,43 @@ async def get_report3_data(days: int = 14):
         logger.error(f"Report 3 API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/report4", response_class=HTMLResponse)
+async def report4_page(request: Request):
+    """Report 4 - Gantt Chart (Construction/Installation Progress)"""
+    return templates.TemplateResponse("report4.html", {
+        "request": request,
+        "title": "報表四：甘特圖",
+        "days": 30  # Default to 30 days for Gantt chart
+    })
+
+@app.get("/api/report4/data")
+async def get_report4_data(days: int = 30):
+    """API endpoint for Report 4 data - Gantt chart for construction/installation"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        # Get Gantt chart data (excluding 專項用 projects)
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days)
+        
+        # Get Gantt chart data
+        gantt_data = await redmine_service.get_gantt_chart_data(start_date, end_date)
+        
+        return {
+            "success": True,
+            "data": {
+                "gantt_data": gantt_data,
+                "date_range": {
+                    "start": start_date.strftime("%Y-%m-%d"),
+                    "end": end_date.strftime("%Y-%m-%d")
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Report 4 API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/users")
 async def get_users():
     """Get list of users for recipient selection"""
