@@ -121,6 +121,24 @@ async def report2_page(request: Request,
             "title": "錯誤"
         })
 
+@app.get("/report3", response_class=HTMLResponse)
+async def report3_page(request: Request, days: int = 14):
+    """Report 3: Special project report (專項用)"""
+    try:
+        return templates.TemplateResponse("report3.html", {
+            "request": request,
+            "days": days,
+            "current_date": datetime.now().strftime("%Y-%m-%d"),
+            "title": "報表三 - 專項用專案統計"
+        })
+    except Exception as e:
+        logger.error(f"Report 3 page error: {e}")
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "error": str(e),
+            "title": "錯誤"
+        })
+
 @app.get("/api/report1/data")
 async def get_report1_data(days: int = 14):
     """API endpoint for Report 1 data"""
@@ -182,6 +200,38 @@ async def get_report2_data(status: str = "open",
         }
     except Exception as e:
         logger.error(f"Report 2 API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/report3/data")
+async def get_report3_data(days: int = 14):
+    """API endpoint for Report 3 data - Special projects (專項用)"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        # Get report data for special projects only
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=days)
+        
+        # Table 1: Issue count by assignee and status (special projects only)
+        table1_data = await redmine_service.get_special_project_statistics(start_date, end_date)
+        
+        # Table 2: Issue list with details (special projects only)
+        table2_data = await redmine_service.get_special_project_issue_list(start_date, end_date)
+        
+        return {
+            "success": True,
+            "data": {
+                "table1": table1_data,
+                "table2": table2_data,
+                "date_range": {
+                    "start": start_date.strftime("%Y-%m-%d"),
+                    "end": end_date.strftime("%Y-%m-%d")
+                }
+            }
+        }
+    except Exception as e:
+        logger.error(f"Report 3 API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/users")

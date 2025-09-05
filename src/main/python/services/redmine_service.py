@@ -39,28 +39,40 @@ class RedmineService:
         # Statuses that are aggregated into "進行中"
         self.active_statuses = ['執行中', '審核中', '修改中', '已完成(結案)']
         
-        # Excluded projects (including sub-projects)
-        self.excluded_projects = ['a55700']  # 專項用 project and its sub-projects
+        # Excluded projects for reports 1 & 2 (including sub-projects)
+        self.excluded_project_names = ['專項用']  # 專項用 project and its sub-projects
         
         logger.info(f"Initialized Redmine service for {settings.REDMINE_URL}")
     
-    def _should_exclude_issue(self, issue) -> bool:
+    def _should_exclude_issue(self, issue, for_special_project=False) -> bool:
         """Check if an issue should be excluded based on project"""
         try:
-            if hasattr(issue, 'project') and hasattr(issue.project, 'identifier'):
-                project_id = issue.project.identifier
+            if hasattr(issue, 'project'):
+                project_name = getattr(issue.project, 'name', '')
                 
-                # Check if project ID is in excluded list
-                if project_id in self.excluded_projects:
-                    return True
-                
-                # Check if it's a sub-project of excluded projects
-                # Get parent project chain to check for excluded parents
-                if hasattr(issue.project, 'parent') and issue.project.parent:
-                    parent = issue.project.parent
-                    if hasattr(parent, 'identifier') and parent.identifier in self.excluded_projects:
-                        return True
-                        
+                if for_special_project:
+                    # For special project reports (report 3), include ONLY 專項用 projects
+                    if project_name in self.excluded_project_names:
+                        return False  # Don't exclude - include this
+                    
+                    # Check if it's a sub-project of excluded projects
+                    if hasattr(issue.project, 'parent') and issue.project.parent:
+                        parent_name = getattr(issue.project.parent, 'name', '')
+                        if parent_name in self.excluded_project_names:
+                            return False  # Don't exclude - include this
+                    
+                    return True  # Exclude - not a special project
+                else:
+                    # For regular reports (1 & 2), exclude 專項用 projects
+                    if project_name in self.excluded_project_names:
+                        return True  # Exclude this
+                    
+                    # Check if it's a sub-project of excluded projects
+                    if hasattr(issue.project, 'parent') and issue.project.parent:
+                        parent_name = getattr(issue.project.parent, 'name', '')
+                        if parent_name in self.excluded_project_names:
+                            return True  # Exclude this
+                            
             return False
         except Exception as e:
             logger.warning(f"Error checking project exclusion for issue: {e}")
@@ -669,3 +681,130 @@ class RedmineService:
     def get_status_aggregation_note(self) -> str:
         """Get the note explaining status aggregation logic"""
         return "註：進行中為狀態「執行中、審核中、修改中、已完成(結案)」的加總"
+    
+    async def get_special_project_statistics(self, start_date: date, end_date: date) -> List[Dict]:
+        """
+        Get issue count statistics for special projects (專項用) only
+        For Report 3
+        """
+        try:
+            # Get issues within date range that are in special projects
+            issues = self.redmine.issue.filter(
+                updated_on=f">={start_date.strftime('%Y-%m-%d')}",
+                created_on=f"<={end_date.strftime('%Y-%m-%d')}",
+                status_id='*',  # All statuses
+                include=['journals']
+            )
+            
+            # Process statistics by role, assignee and status for special projects only
+            stats = {}
+            
+            for issue in issues:
+                # Include only special projects (專項用)
+                if self._should_exclude_issue(issue, for_special_project=True):
+                    continue
+                    
+                assignee = issue.assigned_to.name if hasattr(issue, 'assigned_to') else '未分派'
+                status = issue.status.name if hasattr(issue, 'status') else '未知狀態'
+                
+                # Get user role/group
+                role = self._get_user_role(issue.assigned_to if hasattr(issue, 'assigned_to') else None)
+                
+                key = (role, assignee)
+                if key not in stats:
+                    stats[key] = {}
+                
+                if status not in stats[key]:
+                    stats[key][status] = 0
+                
+                stats[key][status] += 1
+            
+            # Convert to list format for frontend with status aggregation
+            result = []
+            for (role, assignee), statuses in stats.items():
+                row = {
+                    'role': role,
+                    'assignee': assignee
+                }
+                
+                # Initialize all status columns with 0
+                for status in self.status_order:
+                    row[status] = 0
+                
+                # Calculate "進行中" aggregation
+                active_count = 0
+                for status_name, count in statuses.items():
+                    if status_name in self.active_statuses:
+                        active_count += count
+                        row[status_name] = count
+                    elif status_name in self.status_order:
+                        row[status_name] = count
+                
+                # Set the aggregated "進行中" count
+                row['進行中'] = active_count
+                
+                result.append(row)
+            
+            # Sort by role, then by assignee
+            result.sort(key=lambda x: (x['role'], x['assignee']))
+            
+            logger.info(f"Retrieved special project statistics for {len(result)} assignees")
+            return result
+            
+        except RedmineError as e:
+            logger.error(f"Redmine API error in get_special_project_statistics: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in get_special_project_statistics: {e}")
+            raise
+    
+    async def get_special_project_issue_list(self, start_date: date, end_date: date) -> List[Dict]:
+        """
+        Get detailed issue list for special projects (專項用) only
+        For Report 3
+        """
+        try:
+            # Get issues with due dates within the range for special projects
+            issues = self.redmine.issue.filter(
+                due_date=f"><{start_date.strftime('%Y-%m-%d')}|{end_date.strftime('%Y-%m-%d')}",
+                status_id='*',
+                sort='due_date:asc',
+                include=['journals']
+            )
+            
+            result = []
+            for issue in issues:
+                # Include only special projects (專項用)
+                if self._should_exclude_issue(issue, for_special_project=True):
+                    continue
+                    
+                result.append({
+                    'project': issue.project.name if hasattr(issue, 'project') else '',
+                    'priority': issue.priority.name if hasattr(issue, 'priority') else '',
+                    'tracker': issue.tracker.name if hasattr(issue, 'tracker') else '',
+                    'assigned_to': issue.assigned_to.name if hasattr(issue, 'assigned_to') else '未分派',
+                    'status': issue.status.name if hasattr(issue, 'status') else '',
+                    'subject': issue.subject if hasattr(issue, 'subject') else '',
+                    'due_date': issue.due_date.strftime('%Y-%m-%d') if hasattr(issue, 'due_date') and issue.due_date else '',
+                    'start_date': issue.start_date.strftime('%Y-%m-%d') if hasattr(issue, 'start_date') and issue.start_date else '',
+                    'updated_on': issue.updated_on.strftime('%Y-%m-%d %H:%M') if hasattr(issue, 'updated_on') else ''
+                })
+            
+            # Sort by project, priority, tracker, assignee, status
+            result.sort(key=lambda x: (
+                x['project'], 
+                x['priority'], 
+                x['tracker'],
+                x['assigned_to'],
+                x['status']
+            ))
+            
+            logger.info(f"Retrieved {len(result)} special project issues")
+            return result
+            
+        except RedmineError as e:
+            logger.error(f"Redmine API error in get_special_project_issue_list: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in get_special_project_issue_list: {e}")
+            raise
