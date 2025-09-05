@@ -244,31 +244,92 @@ async def report4_page(request: Request):
     })
 
 @app.get("/api/report4/data")
-async def get_report4_data(days: int = 30):
-    """API endpoint for Report 4 data - Gantt chart for construction/installation"""
+async def get_report4_data(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    project_filter: Optional[str] = None,
+    tracker_filter: Optional[str] = None
+):
+    """API endpoint for Report 4 data - Gantt chart with filtering options"""
     try:
         if not redmine_service:
             raise HTTPException(status_code=500, detail="Redmine service not initialized")
         
-        # Get Gantt chart data (excluding 專項用 projects)
-        end_date = datetime.now().date()
-        start_date = end_date - timedelta(days=days)
+        # Parse date parameters
+        parsed_start_date = None
+        parsed_end_date = None
         
-        # Get Gantt chart data
-        gantt_data = await redmine_service.get_gantt_chart_data(start_date, end_date)
+        if start_date:
+            try:
+                parsed_start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+        
+        if end_date:
+            try:
+                parsed_end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+        
+        # Get Gantt chart data with filters
+        gantt_data = await redmine_service.get_gantt_chart_data(
+            start_date=parsed_start_date,
+            end_date=parsed_end_date,
+            project_filter=project_filter,
+            tracker_filter=tracker_filter
+        )
         
         return {
             "success": True,
             "data": {
                 "gantt_data": gantt_data,
-                "date_range": {
-                    "start": start_date.strftime("%Y-%m-%d"),
-                    "end": end_date.strftime("%Y-%m-%d")
-                }
+                "filters": {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "project_filter": project_filter,
+                    "tracker_filter": tracker_filter
+                },
+                "total_count": len(gantt_data)
             }
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Report 4 API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/report4/projects")
+async def get_report4_projects():
+    """Get list of available projects for Report 4 filtering"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        projects = await redmine_service.get_available_projects()
+        
+        return {
+            "success": True,
+            "data": projects
+        }
+    except Exception as e:
+        logger.error(f"Get projects API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/report4/trackers")
+async def get_report4_trackers():
+    """Get list of available trackers for Report 4 filtering"""
+    try:
+        if not redmine_service:
+            raise HTTPException(status_code=500, detail="Redmine service not initialized")
+        
+        trackers = await redmine_service.get_available_trackers()
+        
+        return {
+            "success": True,
+            "data": trackers
+        }
+    except Exception as e:
+        logger.error(f"Get trackers API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/users")

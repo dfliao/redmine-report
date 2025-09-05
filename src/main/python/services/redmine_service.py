@@ -809,10 +809,18 @@ class RedmineService:
             logger.error(f"Error in get_special_project_issue_list: {e}")
             raise
     
-    async def get_gantt_chart_data(self, start_date: date, end_date: date) -> List[Dict]:
-        """Get Gantt chart data for construction/installation projects (excluding 專項用)"""
+    async def get_gantt_chart_data(self, start_date: date = None, end_date: date = None, 
+                                 project_filter: str = None, tracker_filter: str = None) -> List[Dict]:
+        """Get Gantt chart data for construction/installation projects with filtering options
+        
+        Args:
+            start_date: Filter by due date >= start_date
+            end_date: Filter by due date <= end_date  
+            project_filter: Filter by project name (partial match)
+            tracker_filter: Filter by tracker name (partial match)
+        """
         try:
-            logger.info(f"Getting Gantt chart data from {start_date} to {end_date}")
+            logger.info(f"Getting Gantt chart data with filters - Date: {start_date} to {end_date}, Project: {project_filter}, Tracker: {tracker_filter}")
             
             # Get all open issues excluding 專項用 projects
             issues = self.redmine.issue.filter(
@@ -825,6 +833,28 @@ class RedmineService:
                 if self._should_exclude_issue(issue):
                     continue
                 
+                # Apply project filter
+                if project_filter:
+                    project_name = getattr(issue.project, 'name', '') if hasattr(issue, 'project') else ''
+                    if project_filter.lower() not in project_name.lower():
+                        continue
+                
+                # Apply tracker filter  
+                if tracker_filter:
+                    tracker_name = getattr(issue.tracker, 'name', '') if hasattr(issue, 'tracker') else ''
+                    if tracker_filter.lower() not in tracker_name.lower():
+                        continue
+                
+                # Apply date filter (based on due_date)
+                if hasattr(issue, 'due_date') and issue.due_date:
+                    issue_due_date = issue.due_date
+                    
+                    if start_date and issue_due_date < start_date:
+                        continue
+                        
+                    if end_date and issue_due_date > end_date:
+                        continue
+                
                 # Format issue data for Gantt chart display
                 gantt_data = self._format_gantt_issue_data(issue)
                 if gantt_data:
@@ -833,7 +863,7 @@ class RedmineService:
             # Sort by project, then by start_date
             result.sort(key=lambda x: (x.get('project', ''), x.get('start_date', '')))
             
-            logger.info(f"Found {len(result)} issues for Gantt chart")
+            logger.info(f"Found {len(result)} issues for Gantt chart after filtering")
             return result
             
         except RedmineError as e:
@@ -867,3 +897,60 @@ class RedmineService:
         except Exception as e:
             logger.warning(f"Error formatting Gantt issue data for issue {getattr(issue, 'id', 'unknown')}: {e}")
             return None
+    
+    async def get_available_projects(self) -> List[Dict]:
+        """Get list of available projects (excluding 專項用) for filtering"""
+        try:
+            projects = self.redmine.project.all()
+            result = []
+            
+            for project in projects:
+                project_name = getattr(project, 'name', '')
+                
+                # Exclude 專項用 projects
+                if project_name in self.excluded_project_names:
+                    continue
+                    
+                result.append({
+                    'id': getattr(project, 'id', ''),
+                    'name': project_name,
+                    'identifier': getattr(project, 'identifier', '')
+                })
+            
+            # Sort by name
+            result.sort(key=lambda x: x.get('name', ''))
+            
+            logger.info(f"Found {len(result)} available projects")
+            return result
+            
+        except RedmineError as e:
+            logger.error(f"Redmine API error in get_available_projects: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"Error in get_available_projects: {e}")
+            raise
+    
+    async def get_available_trackers(self) -> List[Dict]:
+        """Get list of available trackers for filtering"""
+        try:
+            trackers = self.redmine.tracker.all()
+            result = []
+            
+            for tracker in trackers:
+                result.append({
+                    'id': getattr(tracker, 'id', ''),
+                    'name': getattr(tracker, 'name', '')
+                })
+            
+            # Sort by name
+            result.sort(key=lambda x: x.get('name', ''))
+            
+            logger.info(f"Found {len(result)} available trackers")
+            return result
+            
+        except RedmineError as e:
+            logger.error(f"Redmine API error in get_available_trackers: {e}")
+            raise  
+        except Exception as e:
+            logger.error(f"Error in get_available_trackers: {e}")
+            raise
