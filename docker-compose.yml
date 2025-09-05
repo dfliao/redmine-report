@@ -24,6 +24,16 @@ services:
 
       # Schedule Configuration (cron format)
       - SCHEDULE_CRON=${SCHEDULE_CRON:-0 8 * * 1}  # Every Monday at 8:00 AM
+      
+      # Auto-send Configuration  
+      - REPORT1_AUTO_SEND=${REPORT1_AUTO_SEND:-true}   # Enable Report 1 auto-send
+      - REPORT2_AUTO_SEND=${REPORT2_AUTO_SEND:-true}   # Enable Report 2 auto-send
+      - REPORT3_AUTO_SEND=${REPORT3_AUTO_SEND:-false}  # Enable Report 3 auto-send (weekly)
+      
+      # Custom Recipients (optional, comma-separated emails)
+      - REPORT1_RECIPIENTS=${REPORT1_RECIPIENTS:-}     # Custom recipients for Report 1
+      - REPORT2_RECIPIENTS=${REPORT2_RECIPIENTS:-}     # Custom recipients for Report 2  
+      - REPORT3_RECIPIENTS=${REPORT3_RECIPIENTS:-}     # Custom recipients for Report 3
 
       # Debug Configuration
       - DEBUG=${DEBUG:-false}
