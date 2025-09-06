@@ -34,6 +34,19 @@ services:
       - REPORT1_RECIPIENTS=${REPORT1_RECIPIENTS:-}     # Custom recipients for Report 1
       - REPORT2_RECIPIENTS=${REPORT2_RECIPIENTS:-}     # Custom recipients for Report 2  
       - REPORT3_RECIPIENTS=${REPORT3_RECIPIENTS:-}     # Custom recipients for Report 3
+      
+      # Synology DSM Configuration
+      - SYNOLOGY_DSM_HOST=${SYNOLOGY_DSM_HOST:-192.168.0.222}
+      - SYNOLOGY_DSM_PORT=${SYNOLOGY_DSM_PORT:-5001}
+      - SYNOLOGY_DSM_ADMIN_USER=${SYNOLOGY_DSM_ADMIN_USER:-admin}
+      - SYNOLOGY_DSM_ADMIN_PASS=${SYNOLOGY_DSM_ADMIN_PASS:-}
+      
+      # Synology LDAP Configuration  
+      - LDAP_HOST=${LDAP_HOST:-192.168.0.222}
+      - LDAP_PORT=${LDAP_PORT:-389}
+      - LDAP_ADMIN_DN=${LDAP_ADMIN_DN:-cn=root,dc=gogopeaks,dc=com}
+      - LDAP_ADMIN_PASS=${LDAP_ADMIN_PASS:-}
+      - LDAP_BASE_DN=${LDAP_BASE_DN:-cn=users,dc=gogopeaks,dc=com}
 
       # Debug Configuration
       - DEBUG=${DEBUG:-false}

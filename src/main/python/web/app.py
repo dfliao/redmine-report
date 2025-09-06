@@ -17,6 +17,7 @@ import logging
 
 from ..services.redmine_service import RedmineService
 from ..services.report_generator import ReportGenerator
+from ..services.synology_service import SynologyService
 from ..utils.config import get_settings
 
 # Setup logging
@@ -37,14 +38,16 @@ app.mount("/static", StaticFiles(directory="src/main/resources/static"), name="s
 # Global services
 redmine_service: Optional[RedmineService] = None
 report_generator: Optional[ReportGenerator] = None
+synology_service: Optional[SynologyService] = None
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    global redmine_service, report_generator
+    global redmine_service, report_generator, synology_service
     
     settings = get_settings()
     redmine_service = RedmineService(settings)
+    synology_service = SynologyService(settings)
     
     # Import services here to avoid circular imports
     from ..services.email_service import EmailService
@@ -332,6 +335,30 @@ async def get_report4_trackers():
         logger.error(f"Get trackers API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/test-synology-connection")
+async def test_synology_connection():
+    """Test Synology DSM and LDAP connections"""
+    try:
+        if not synology_service:
+            raise HTTPException(status_code=500, detail="Synology service not initialized")
+        
+        # Test DSM connection
+        dsm_result = await synology_service.test_dsm_connection()
+        
+        # Test LDAP connection  
+        ldap_result = await synology_service.test_ldap_connection()
+        
+        return {
+            "success": True,
+            "data": {
+                "dsm": dsm_result,
+                "ldap": ldap_result
+            }
+        }
+    except Exception as e:
+        logger.error(f"Test Synology connection error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/api/users")
 async def get_users():
     """Get list of users for recipient selection"""
@@ -605,30 +632,71 @@ async def execute_password_change(
         if len(new_password) < 8:
             raise HTTPException(status_code=400, detail="密碼長度至少需要8個字元")
         
-        # TODO: Implement actual password change logic for:
-        # 1. Synology DSM users
-        # 2. Synology LDAP server
-        # This requires Synology API integration or SSH/command execution
-        
-        # For now, simulate the process
+        # Execute actual password changes
         results = []
-        if change_dsm:
-            results.append("Synology DSM 密碼變更成功")
-        if change_ldap:
-            results.append("Synology LDAP 密碼變更成功")
+        errors = []
         
-        # Get users list again for the success page
+        if not synology_service:
+            raise HTTPException(status_code=500, detail="Synology service not initialized")
+        
+        # Change DSM password
+        if change_dsm:
+            try:
+                dsm_result = await synology_service.change_dsm_user_password(target_user, new_password)
+                if dsm_result['success']:
+                    results.append(dsm_result['message'])
+                else:
+                    errors.append(dsm_result['message'])
+            except Exception as e:
+                errors.append(f"DSM密碼變更錯誤: {str(e)}")
+        
+        # Change LDAP password
+        if change_ldap:
+            try:
+                ldap_result = await synology_service.change_ldap_user_password(target_user, new_password)
+                if ldap_result['success']:
+                    results.append(ldap_result['message'])
+                else:
+                    errors.append(ldap_result['message'])
+            except Exception as e:
+                errors.append(f"LDAP密碼變更錯誤: {str(e)}")
+        
+        # If no system was selected
+        if not change_dsm and not change_ldap:
+            errors.append("請至少選擇一個系統進行密碼變更")
+        
+        # Get users list again for the response page
         users = await redmine_service.get_users() if redmine_service else []
         
-        return templates.TemplateResponse("change-password.html", {
-            "request": request,
-            "authenticated": True,
-            "is_admin": True,
-            "users": users,
-            "success": f"密碼變更完成：{', '.join(results) if results else '未選擇任何系統'}",
-            "current_date": datetime.now().strftime("%Y-%m-%d"),
-            "title": "變更密碼"
-        })
+        # Determine success or failure
+        if errors:
+            # If there are any errors, show error page
+            error_message = "密碼變更過程中發生錯誤：\n" + "\n".join(errors)
+            if results:
+                error_message += "\n\n成功的變更：\n" + "\n".join(results)
+            
+            return templates.TemplateResponse("change-password.html", {
+                "request": request,
+                "authenticated": True,
+                "is_admin": True,
+                "users": users,
+                "error": error_message,
+                "current_date": datetime.now().strftime("%Y-%m-%d"),
+                "title": "變更密碼"
+            })
+        else:
+            # All successful
+            success_message = "密碼變更完成：\n" + "\n".join(results) if results else "未選擇任何系統"
+            
+            return templates.TemplateResponse("change-password.html", {
+                "request": request,
+                "authenticated": True,
+                "is_admin": True,
+                "users": users,
+                "success": success_message,
+                "current_date": datetime.now().strftime("%Y-%m-%d"),
+                "title": "變更密碼"
+            })
         
     except Exception as e:
         logger.error(f"Execute password change error: {e}")
