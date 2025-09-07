@@ -810,7 +810,8 @@ class RedmineService:
             raise
     
     async def get_gantt_chart_data(self, start_date: date = None, end_date: date = None, 
-                                 project_filter: str = None, tracker_filter: str = None) -> List[Dict]:
+                                 project_filter: str = None, tracker_filter: str = None,
+                                 status_filter: List[str] = None) -> List[Dict]:
         """Get Gantt chart data for construction/installation projects with filtering options
         
         Args:
@@ -818,9 +819,10 @@ class RedmineService:
             end_date: Filter by due date <= end_date  
             project_filter: Filter by project name (partial match)
             tracker_filter: Filter by tracker name (partial match)
+            status_filter: Filter by status names (exact match list)
         """
         try:
-            logger.info(f"Getting Gantt chart data with filters - Date: {start_date} to {end_date}, Project: {project_filter}, Tracker: {tracker_filter}")
+            logger.info(f"Getting Gantt chart data with filters - Date: {start_date} to {end_date}, Project: {project_filter}, Tracker: {tracker_filter}, Status: {status_filter}")
             
             # Get all open issues excluding 專項用 projects
             issues = self.redmine.issue.filter(
@@ -843,6 +845,12 @@ class RedmineService:
                 if tracker_filter:
                     tracker_name = getattr(issue.tracker, 'name', '') if hasattr(issue, 'tracker') else ''
                     if tracker_filter.lower() not in tracker_name.lower():
+                        continue
+                
+                # Apply status filter
+                if status_filter:
+                    issue_status = getattr(issue.status, 'name', '') if hasattr(issue, 'status') else ''
+                    if issue_status not in status_filter:
                         continue
                 
                 # Apply date filter (based on due_date)

@@ -7,7 +7,7 @@ Web interface for Redmine reporting system with two main reports:
 - Report 2: Due date change tracking report
 """
 
-from fastapi import FastAPI, Request, Form, HTTPException
+from fastapi import FastAPI, Request, Form, HTTPException, Query
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -251,7 +251,8 @@ async def get_report4_data(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     project_filter: Optional[str] = None,
-    tracker_filter: Optional[str] = None
+    tracker_filter: Optional[str] = None,
+    status_filter: Optional[List[str]] = Query(None)
 ):
     """API endpoint for Report 4 data - Gantt chart with filtering options"""
     try:
@@ -279,7 +280,8 @@ async def get_report4_data(
             start_date=parsed_start_date,
             end_date=parsed_end_date,
             project_filter=project_filter,
-            tracker_filter=tracker_filter
+            tracker_filter=tracker_filter,
+            status_filter=status_filter
         )
         
         return {
@@ -290,7 +292,8 @@ async def get_report4_data(
                     "start_date": start_date,
                     "end_date": end_date,
                     "project_filter": project_filter,
-                    "tracker_filter": tracker_filter
+                    "tracker_filter": tracker_filter,
+                    "status_filter": status_filter
                 },
                 "total_count": len(gantt_data)
             }

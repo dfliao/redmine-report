@@ -63,14 +63,15 @@
                             <select class="form-select" id="quick-date-range" onchange="setQuickDateRange()">
                                 <option value="">自訂範圍</option>
                                 <option value="30">未來 30 天</option>
-                                <option value="60" selected>未來 60 天</option>
+                                <option value="60">未來 60 天</option>
                                 <option value="90">未來 90 天</option>
                                 <option value="180">未來 180 天</option>
+                                <option value="custom" selected>施工安裝範圍 (-7天至+28天)</option>
                             </select>
                         </div>
                     </div>
                     
-                    <!-- Row 2: Project and Tracker Filters -->
+                    <!-- Row 2: Project, Tracker, and Status Filters -->
                     <div class="form-row mb-4">
                         <div class="form-group">
                             <label class="form-label" for="project-filter">專案篩選</label>
@@ -87,6 +88,26 @@
                             </select>
                         </div>
                         <div class="form-group">
+                            <label class="form-label" for="status-filter">狀態篩選</label>
+                            <select class="form-select" id="status-filter" onchange="updateReport()" multiple style="height: 120px;">
+                                <option value="執行中" selected>執行中</option>
+                                <option value="審查中" selected>審查中</option>
+                                <option value="已審查" selected>已審查</option>
+                                <option value="已完成(結案)" selected>已完成(結案)</option>
+                                <option value="修改中" selected>修改中</option>
+                                <option value="擬定中">擬定中</option>
+                                <option value="待審核">待審核</option>
+                                <option value="已回應">已回應</option>
+                                <option value="暫停">暫停</option>
+                                <option value="取消">取消</option>
+                            </select>
+                            <small class="text-sm text-gray-500">預設選取施工安裝相關狀態</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Row 3: Actions -->
+                    <div class="form-row mb-4">
+                        <div class="form-group" style="flex: 0 0 auto;">
                             <label class="form-label">操作</label>
                             <div style="display: flex; gap: 0.5rem;">
                                 <button onclick="clearAllFilters()" class="btn btn-secondary">
@@ -218,11 +239,14 @@
         // Initialize filters and load initial data
         async function initializeFilters() {
             try {
-                // Set default date range (next 60 days)
+                // Set default date range (today -7 to +28 days)
                 setQuickDateRange();
                 
                 // Load projects and trackers for filter options
                 await loadFilterOptions();
+                
+                // Set default filters for construction/installation
+                setDefaultFilters();
                 
                 // Load initial data
                 await refreshReport();
@@ -296,9 +320,20 @@
         // Set quick date range
         function setQuickDateRange() {
             const quickSelect = document.getElementById('quick-date-range');
-            const days = parseInt(quickSelect.value);
+            const value = quickSelect.value;
             
-            if (days) {
+            if (value === 'custom') {
+                // 施工安裝範圍：今日-7天到今日+28天
+                const today = new Date();
+                const startDate = new Date();
+                const endDate = new Date();
+                startDate.setDate(today.getDate() - 7);
+                endDate.setDate(today.getDate() + 28);
+                
+                document.getElementById('start-date').value = startDate.toISOString().split('T')[0];
+                document.getElementById('end-date').value = endDate.toISOString().split('T')[0];
+            } else if (value) {
+                const days = parseInt(value);
                 const today = new Date();
                 const futureDate = new Date();
                 futureDate.setDate(today.getDate() + days);
@@ -321,7 +356,31 @@
             document.getElementById('tracker-filter').value = '';
             document.getElementById('quick-date-range').value = '';
             
+            // Clear status filter selections
+            const statusFilter = document.getElementById('status-filter');
+            for (let option of statusFilter.options) {
+                option.selected = false;
+            }
+            
             updateReport();
+        }
+        
+        // Set default filters for construction/installation
+        function setDefaultFilters() {
+            // Set date range to -7 days to +28 days
+            setQuickDateRange();
+            
+            // Set tracker filter to "施工安裝" if available
+            const trackerFilter = document.getElementById('tracker-filter');
+            for (let option of trackerFilter.options) {
+                if (option.text.includes('施工安裝') || option.text.includes('施工') || option.text.includes('安裝')) {
+                    option.selected = true;
+                    trackerFilter.value = option.value;
+                    break;
+                }
+            }
+            
+            // Status filter is already set by default in HTML
         }
         
         // Update report based on current filters
@@ -345,12 +404,19 @@
                 const projectFilter = document.getElementById('project-filter').value;
                 const trackerFilter = document.getElementById('tracker-filter').value;
                 
+                // Get selected status values
+                const statusFilter = document.getElementById('status-filter');
+                const selectedStatuses = Array.from(statusFilter.selectedOptions).map(option => option.value);
+                
                 // Build query parameters
                 const params = new URLSearchParams();
                 if (startDate) params.append('start_date', startDate);
                 if (endDate) params.append('end_date', endDate);
                 if (projectFilter) params.append('project_filter', projectFilter);
                 if (trackerFilter) params.append('tracker_filter', trackerFilter);
+                if (selectedStatuses.length > 0) {
+                    selectedStatuses.forEach(status => params.append('status_filter', status));
+                }
                 
                 const response = await fetch(`/api/report4/data?${params.toString()}`);
                 const result = await response.json();
@@ -815,6 +881,10 @@
                 statusParts.push(`追蹤標籤: ${filters.tracker_filter}`);
             }
             
+            if (filters.status_filter && filters.status_filter.length > 0) {
+                statusParts.push(`狀態: ${filters.status_filter.join(', ')}`);
+            }
+            
             if (statusParts.length === 0) {
                 statusParts.push('顯示所有資料');
             }
@@ -825,7 +895,8 @@
             summaryTextElement.textContent = ` - 找到 ${totalCount} 筆符合條件的任務`;
             
             // Show/hide summary based on filters
-            if (filters.start_date || filters.end_date || filters.project_filter || filters.tracker_filter) {
+            if (filters.start_date || filters.end_date || filters.project_filter || filters.tracker_filter || 
+                (filters.status_filter && filters.status_filter.length > 0)) {
                 summaryElement.style.display = 'block';
             } else {
                 summaryElement.style.display = 'none';

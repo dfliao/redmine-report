@@ -32,7 +32,7 @@ class SynologyService:
         self.ldap_port = getattr(settings, 'LDAP_PORT', 389)
         self.ldap_admin_dn = getattr(settings, 'LDAP_ADMIN_DN', 'uid=df.liao,cn=users,dc=nas,dc=gogopeaks,dc=com')
         self.ldap_admin_pass = getattr(settings, 'LDAP_ADMIN_PASS', '')
-        self.ldap_base_dn = getattr(settings, 'LDAP_BASE_DN', 'cn=users,dc=nas,dc=gogopeaks,dc=com')
+        self.ldap_base_dn = getattr(settings, 'LDAP_BASE_DN', 'dc=nas,dc=gogopeaks,dc=com')
         self.ldap_login_attr = getattr(settings, 'LDAP_LOGIN_ATTR', 'uid')
         
         # Session management
