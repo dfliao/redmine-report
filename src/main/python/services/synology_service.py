@@ -30,9 +30,10 @@ class SynologyService:
         # LDAP settings
         self.ldap_host = getattr(settings, 'LDAP_HOST', 'localhost')
         self.ldap_port = getattr(settings, 'LDAP_PORT', 389)
-        self.ldap_admin_dn = getattr(settings, 'LDAP_ADMIN_DN', 'cn=root,dc=example,dc=com')
+        self.ldap_admin_dn = getattr(settings, 'LDAP_ADMIN_DN', 'uid=df.liao,cn=users,dc=nas,dc=gogopeaks,dc=com')
         self.ldap_admin_pass = getattr(settings, 'LDAP_ADMIN_PASS', '')
-        self.ldap_base_dn = getattr(settings, 'LDAP_BASE_DN', 'cn=users,dc=example,dc=com')
+        self.ldap_base_dn = getattr(settings, 'LDAP_BASE_DN', 'cn=users,dc=nas,dc=gogopeaks,dc=com')
+        self.ldap_login_attr = getattr(settings, 'LDAP_LOGIN_ATTR', 'uid')
         
         # Session management
         self.dsm_session = None
@@ -105,19 +106,28 @@ class SynologyService:
             server = Server(f'ldap://{self.ldap_host}:{self.ldap_port}', get_info=ALL)
             conn = Connection(server, user=self.ldap_admin_dn, password=self.ldap_admin_pass, auto_bind=True)
             
-            # Search for the user
-            user_dn = f'cn={username},{self.ldap_base_dn}'
-            search_result = conn.search(user_dn, '(objectClass=*)')
+            # Construct user DN using the login attribute (uid)
+            user_dn = f'{self.ldap_login_attr}={username},{self.ldap_base_dn}'
             
-            if not search_result:
+            # Search for the user to verify existence
+            search_base = self.ldap_base_dn
+            search_filter = f'({self.ldap_login_attr}={username})'
+            search_result = conn.search(search_base, search_filter)
+            
+            if not search_result or not conn.entries:
                 logger.error(f"LDAP user not found: {username}")
+                conn.unbind()
                 return {
                     'success': False,
-                    'message': f'LDAP使用者不存在: {username}'
+                    'message': f'LDAP使用者不存在: {username} (搜尋條件: {search_filter})'
                 }
             
-            # Change password
-            modify_result = conn.modify(user_dn, {'userPassword': [(MODIFY_REPLACE, [new_password])]})
+            # Use the actual DN from search results
+            actual_user_dn = str(conn.entries[0].entry_dn)
+            logger.info(f"Found LDAP user DN: {actual_user_dn}")
+            
+            # Change password using the correct DN
+            modify_result = conn.modify(actual_user_dn, {'userPassword': [(MODIFY_REPLACE, [new_password])]})
             
             if modify_result:
                 logger.info(f"LDAP password changed successfully for user: {username}")
@@ -272,19 +282,44 @@ class SynologyService:
     async def test_ldap_connection(self) -> Dict[str, any]:
         """Test LDAP connection"""
         try:
-            server = Server(f'ldap://{self.ldap_host}:{self.ldap_port}')
-            conn = Connection(server, user=self.ldap_admin_dn, password=self.ldap_admin_pass)
-            
-            if conn.bind():
-                conn.unbind()
-                return {
-                    'success': True,
-                    'message': 'LDAP連線測試成功'
-                }
-            else:
+            # Check if admin password is provided
+            if not self.ldap_admin_pass:
                 return {
                     'success': False,
-                    'message': 'LDAP連線測試失敗：認證錯誤'
+                    'message': 'LDAP管理員密碼未設定 (LDAP_ADMIN_PASS)'
+                }
+            
+            server = Server(f'ldap://{self.ldap_host}:{self.ldap_port}')
+            conn = Connection(
+                server, 
+                user=self.ldap_admin_dn, 
+                password=self.ldap_admin_pass,
+                auto_bind=False
+            )
+            
+            # Try to bind
+            bind_result = conn.bind()
+            
+            if bind_result:
+                # Test a basic search to verify access
+                search_result = conn.search(self.ldap_base_dn, '(objectClass=*)', search_scope='LEVEL')
+                conn.unbind()
+                
+                if search_result:
+                    return {
+                        'success': True,
+                        'message': f'LDAP連線測試成功 (DN: {self.ldap_admin_dn})'
+                    }
+                else:
+                    return {
+                        'success': False,
+                        'message': f'LDAP認證成功但無法搜尋基底DN: {self.ldap_base_dn}'
+                    }
+            else:
+                error_msg = conn.last_error or '認證失敗'
+                return {
+                    'success': False,
+                    'message': f'LDAP連線測試失敗：{error_msg}'
                 }
                 
         except Exception as e:

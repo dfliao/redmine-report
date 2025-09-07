@@ -119,27 +119,48 @@
                 </div>
             </div>
 
-            <!-- Gantt Chart Placeholder -->
+            <!-- Gantt Chart -->
             <div class="card mb-8" id="gantt-container">
                 <div class="card-header">
-                    <h3 class="card-title">
-                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
-                        </svg>
-                        施工/安裝甘特圖
-                    </h3>
-                    <div class="card-subtitle">
-                        <span id="filter-status">載入中...</span> | 排除專項用專案
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 class="card-title">
+                                <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+                                </svg>
+                                施工/安裝甘特圖
+                            </h3>
+                            <div class="card-subtitle">
+                                <span id="filter-status">載入中...</span> | 排除專項用專案
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="view-toggle" onchange="toggleView()" checked>
+                                <span class="toggle-slider"></span>
+                            </label>
+                            <span class="text-sm">甘特圖模式</span>
+                        </div>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="alert alert-info mb-4">
-                        <strong>ℹ️ 開發中功能</strong><br>
-                        甘特圖視覺化功能正在開發中。目前顯示基本任務列表，未來將升級為完整的甘特圖介面。
+                    <!-- Gantt Chart View -->
+                    <div id="gantt-chart-view" class="gantt-chart-container">
+                        <div class="gantt-header">
+                            <div class="gantt-tasks-header">任務</div>
+                            <div class="gantt-timeline-header" id="timeline-header">
+                                <!-- Timeline dates will be generated here -->
+                            </div>
+                        </div>
+                        <div class="gantt-body" id="gantt-body">
+                            <div class="text-center" style="padding: 2rem; color: #666;">
+                                載入中...
+                            </div>
+                        </div>
                     </div>
                     
-                    <!-- Basic Task List (Placeholder for Gantt Chart) -->
-                    <div class="table-container">
+                    <!-- Table View (fallback/alternative) -->
+                    <div id="table-view" class="table-container" style="display: none;">
                         <table class="table" id="gantt-table">
                             <thead>
                                 <tr>
@@ -160,6 +181,22 @@
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Task Details Modal -->
+            <div id="task-modal" class="modal hidden">
+                <div class="modal-overlay" onclick="closeTaskModal()"></div>
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 class="modal-title">任務詳情</h3>
+                        <button class="modal-close" onclick="closeTaskModal()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="task-details-content">
+                            <div class="loading-spinner">載入中...</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -320,7 +357,7 @@
                 
                 if (result.success) {
                     currentData = result.data;
-                    updateGanttTable(result.data.gantt_data);
+                    updateGanttChart(result.data.gantt_data);
                     updateFilterStatus(result.data.filters, result.data.total_count);
                 } else {
                     throw new Error(result.message || '載入失敗');
@@ -333,7 +370,200 @@
             }
         }
         
-        // Update Gantt table (placeholder for actual Gantt chart)
+        // Toggle between Gantt chart and table view
+        function toggleView() {
+            const isGanttView = document.getElementById('view-toggle').checked;
+            const ganttView = document.getElementById('gantt-chart-view');
+            const tableView = document.getElementById('table-view');
+            
+            if (isGanttView) {
+                ganttView.style.display = 'block';
+                tableView.style.display = 'none';
+            } else {
+                ganttView.style.display = 'none';
+                tableView.style.display = 'block';
+            }
+        }
+
+        // Update Gantt chart with data
+        function updateGanttChart(data) {
+            const isGanttView = document.getElementById('view-toggle').checked;
+            
+            if (isGanttView) {
+                renderGanttChart(data);
+            } else {
+                updateGanttTable(data);
+            }
+        }
+
+        // Render the actual Gantt chart
+        function renderGanttChart(data) {
+            if (!data || data.length === 0) {
+                document.getElementById('gantt-body').innerHTML = 
+                    '<div class="text-center" style="padding: 2rem; color: #666;">無甘特圖資料</div>';
+                return;
+            }
+
+            // Calculate date range for timeline
+            const dateRange = calculateDateRange(data);
+            
+            // Generate timeline header
+            generateTimelineHeader(dateRange);
+            
+            // Generate Gantt chart rows
+            generateGanttRows(data, dateRange);
+        }
+
+        // Calculate date range for the Gantt chart timeline
+        function calculateDateRange(data) {
+            let minDate = null;
+            let maxDate = null;
+            
+            data.forEach(task => {
+                if (task.start_date) {
+                    const startDate = new Date(task.start_date);
+                    if (!minDate || startDate < minDate) {
+                        minDate = startDate;
+                    }
+                }
+                
+                if (task.due_date) {
+                    const dueDate = new Date(task.due_date);
+                    if (!maxDate || dueDate > maxDate) {
+                        maxDate = dueDate;
+                    }
+                }
+            });
+            
+            // Add buffer days
+            if (minDate) minDate.setDate(minDate.getDate() - 2);
+            if (maxDate) maxDate.setDate(maxDate.getDate() + 2);
+            
+            // Default range if no dates found
+            if (!minDate) minDate = new Date();
+            if (!maxDate) {
+                maxDate = new Date();
+                maxDate.setDate(maxDate.getDate() + 30);
+            }
+            
+            return { startDate: minDate, endDate: maxDate };
+        }
+
+        // Generate timeline header with date columns
+        function generateTimelineHeader(dateRange) {
+            const timelineHeader = document.getElementById('timeline-header');
+            const days = [];
+            
+            const currentDate = new Date(dateRange.startDate);
+            while (currentDate <= dateRange.endDate) {
+                days.push(new Date(currentDate));
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            let headerHTML = '';
+            days.forEach(date => {
+                const dayOfWeek = date.getDay();
+                const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                const isToday = isDateToday(date);
+                
+                const dayClass = `timeline-day ${isWeekend ? 'weekend' : ''} ${isToday ? 'today' : ''}`;
+                
+                headerHTML += `
+                    <div class="${dayClass}" title="${formatDateLong(date)}">
+                        <div class="day-number">${date.getDate()}</div>
+                        <div class="day-name">${getShortDayName(date)}</div>
+                    </div>
+                `;
+            });
+            
+            timelineHeader.innerHTML = headerHTML;
+        }
+
+        // Generate Gantt chart rows with task bars
+        function generateGanttRows(data, dateRange) {
+            const ganttBody = document.getElementById('gantt-body');
+            let rowsHTML = '';
+            
+            // Group tasks by project
+            const tasksByProject = {};
+            data.forEach(task => {
+                const projectName = task.project || '未分類專案';
+                if (!tasksByProject[projectName]) {
+                    tasksByProject[projectName] = [];
+                }
+                tasksByProject[projectName].push(task);
+            });
+            
+            // Generate rows for each project
+            Object.keys(tasksByProject).forEach((projectName, projectIndex) => {
+                const tasks = tasksByProject[projectName];
+                const isEvenProject = projectIndex % 2 === 0;
+                
+                tasks.forEach((task, taskIndex) => {
+                    const taskBar = generateTaskBar(task, dateRange);
+                    const priorityBadge = getPriorityBadge(task.priority);
+                    const statusBadge = getStatusBadge(task.status);
+                    
+                    const rowClass = `gantt-row ${isEvenProject ? 'project-even' : 'project-odd'}`;
+                    
+                    rowsHTML += `
+                        <div class="${rowClass}" data-task-id="${task.id || taskIndex}">
+                            <div class="gantt-task-info">
+                                <div class="task-project">${projectName}</div>
+                                <div class="task-title" title="${task.subject || ''}">${truncateText(task.subject || '', 40)}</div>
+                                <div class="task-meta">
+                                    ${statusBadge} ${priorityBadge}
+                                    <span class="task-assignee">${task.assigned_to || '未分派'}</span>
+                                </div>
+                            </div>
+                            <div class="gantt-timeline">
+                                ${taskBar}
+                            </div>
+                        </div>
+                    `;
+                });
+            });
+            
+            ganttBody.innerHTML = rowsHTML;
+        }
+
+        // Generate task bar for timeline
+        function generateTaskBar(task, dateRange) {
+            if (!task.start_date || !task.due_date) {
+                return '<div class="task-bar-placeholder">無日期資料</div>';
+            }
+            
+            const startDate = new Date(task.start_date);
+            const dueDate = new Date(task.due_date);
+            const totalDays = Math.ceil((dateRange.endDate - dateRange.startDate) / (1000 * 60 * 60 * 24));
+            
+            // Calculate position and width
+            const startOffset = Math.ceil((startDate - dateRange.startDate) / (1000 * 60 * 60 * 24));
+            const duration = Math.ceil((dueDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+            
+            const leftPercent = (startOffset / totalDays) * 100;
+            const widthPercent = (duration / totalDays) * 100;
+            
+            // Progress and status styling
+            const progress = task.done_ratio || 0;
+            const statusClass = getTaskBarStatusClass(task.status);
+            
+            const isOverdue = new Date() > dueDate && progress < 100;
+            const overdueClass = isOverdue ? 'overdue' : '';
+            
+            return `
+                <div class="task-bar-container" style="left: ${leftPercent}%; width: ${widthPercent}%;">
+                    <div class="task-bar ${statusClass} ${overdueClass}" 
+                         title="${task.subject}\n進度: ${progress}%\n${task.start_date} - ${task.due_date}"
+                         onclick="showTaskDetails('${task.id || ''}')">
+                        <div class="task-bar-progress" style="width: ${progress}%"></div>
+                        <div class="task-bar-text">${truncateText(task.subject || '', 20)}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update table view (fallback)
         function updateGanttTable(data) {
             const tbody = document.querySelector('#gantt-table tbody');
             
@@ -377,6 +607,188 @@
             
             tbody.innerHTML = html;
         }
+
+        // Utility functions
+        function isDateToday(date) {
+            const today = new Date();
+            return date.toDateString() === today.toDateString();
+        }
+
+        function formatDateLong(date) {
+            return date.toLocaleDateString('zh-TW', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                weekday: 'long'
+            });
+        }
+
+        function getShortDayName(date) {
+            const days = ['日', '一', '二', '三', '四', '五', '六'];
+            return days[date.getDay()];
+        }
+
+        function getTaskBarStatusClass(status) {
+            const statusClasses = {
+                '擬定中': 'status-planning',
+                '執行中': 'status-active',
+                '待審核': 'status-review',
+                '修正中': 'status-fixing',
+                '已回應': 'status-responded',
+                '已完成': 'status-completed',
+                '暫停': 'status-paused',
+                '取消': 'status-cancelled'
+            };
+            return statusClasses[status] || 'status-default';
+        }
+
+        function truncateText(text, length) {
+            if (!text) return '';
+            return text.length > length ? text.substring(0, length) + '...' : text;
+        }
+
+        // Show task details modal
+        function showTaskDetails(taskId) {
+            if (!currentData || !currentData.gantt_data) {
+                alert('❌ 任務資料未載入');
+                return;
+            }
+            
+            // Find task data
+            const task = currentData.gantt_data.find(t => t.id === taskId || t.id === parseInt(taskId));
+            
+            if (!task) {
+                alert('❌ 找不到任務資料');
+                return;
+            }
+            
+            // Show modal
+            const modal = document.getElementById('task-modal');
+            const content = document.getElementById('task-details-content');
+            
+            modal.classList.remove('hidden');
+            
+            // Generate task details HTML
+            content.innerHTML = generateTaskDetailsHTML(task);
+        }
+        
+        // Close task details modal
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.add('hidden');
+        }
+        
+        // Generate task details HTML
+        function generateTaskDetailsHTML(task) {
+            const statusBadge = getStatusBadge(task.status);
+            const priorityBadge = getPriorityBadge(task.priority);
+            const progressBar = getProgressBar(task.done_ratio);
+            
+            // Calculate duration
+            const duration = calculateTaskDuration(task.start_date, task.due_date);
+            
+            // Check if overdue
+            const isOverdue = new Date() > new Date(task.due_date) && task.done_ratio < 100;
+            
+            return `
+                <div class="task-details">
+                    <div class="task-header-details">
+                        <h4 class="task-title-large">${task.subject || '無標題'}</h4>
+                        <div class="task-badges">
+                            ${statusBadge}
+                            ${priorityBadge}
+                            ${isOverdue ? '<span class="badge badge-error">逾期</span>' : ''}
+                        </div>
+                    </div>
+                    
+                    <div class="task-details-grid">
+                        <div class="detail-section">
+                            <h5>基本資訊</h5>
+                            <div class="detail-item">
+                                <span class="detail-label">專案：</span>
+                                <span class="detail-value">${task.project || '未分類'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">追蹤標籤：</span>
+                                <span class="detail-value">${task.tracker || '未設定'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">被分派者：</span>
+                                <span class="detail-value">${task.assigned_to || '未分派'}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h5>時程資訊</h5>
+                            <div class="detail-item">
+                                <span class="detail-label">開始日期：</span>
+                                <span class="detail-value">${task.start_date || '未設定'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">完成日期：</span>
+                                <span class="detail-value">${task.due_date || '未設定'}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">工期：</span>
+                                <span class="detail-value">${duration}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="detail-section full-width">
+                            <h5>進度狀況</h5>
+                            <div class="detail-item">
+                                <span class="detail-label">完成率：</span>
+                                <div class="detail-progress-container">
+                                    ${progressBar}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        ${task.description ? `
+                        <div class="detail-section full-width">
+                            <h5>描述</h5>
+                            <div class="task-description">
+                                ${task.description}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                    
+                    <div class="task-actions">
+                        <button class="btn btn-secondary" onclick="closeTaskModal()">關閉</button>
+                        ${task.redmine_url ? `<a href="${task.redmine_url}" target="_blank" class="btn btn-primary">在 Redmine 中查看</a>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Calculate task duration
+        function calculateTaskDuration(startDate, dueDate) {
+            if (!startDate || !dueDate) return '未設定';
+            
+            const start = new Date(startDate);
+            const due = new Date(dueDate);
+            const diffTime = Math.abs(due - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+            
+            return `${diffDays} 天`;
+        }
+        
+        // Close modal when clicking outside
+        document.addEventListener('click', function(e) {
+            const modal = document.getElementById('task-modal');
+            const modalContent = modal.querySelector('.modal-content');
+            
+            if (modal && !modal.classList.contains('hidden') && !modalContent.contains(e.target)) {
+                closeTaskModal();
+            }
+        });
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeTaskModal();
+            }
+        });
         
         // Update filter status display
         function updateFilterStatus(filters, totalCount) {
@@ -481,8 +893,468 @@
         }
     </script>
     
-    <!-- Project Background Colors -->
+    <!-- Gantt Chart & Project Background Colors -->
     <style>
+        /* Toggle Switch Styling */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 24px;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 24px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        
+        input:checked + .toggle-slider {
+            background-color: #3b82f6;
+        }
+        
+        input:checked + .toggle-slider:before {
+            transform: translateX(26px);
+        }
+
+        /* Gantt Chart Container */
+        .gantt-chart-container {
+            overflow-x: auto;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+        }
+        
+        /* Gantt Chart Header */
+        .gantt-header {
+            display: flex;
+            background-color: #f9fafb;
+            border-bottom: 2px solid #e5e7eb;
+            font-weight: 600;
+            color: #374151;
+        }
+        
+        .gantt-tasks-header {
+            width: 300px;
+            min-width: 300px;
+            padding: 1rem;
+            border-right: 1px solid #e5e7eb;
+            background-color: #f3f4f6;
+        }
+        
+        .gantt-timeline-header {
+            display: flex;
+            flex: 1;
+            min-width: 800px;
+        }
+        
+        .timeline-day {
+            min-width: 40px;
+            padding: 0.5rem 0.25rem;
+            text-align: center;
+            border-right: 1px solid #e5e7eb;
+            font-size: 0.75rem;
+        }
+        
+        .timeline-day.weekend {
+            background-color: #f3f4f6;
+            color: #6b7280;
+        }
+        
+        .timeline-day.today {
+            background-color: #dbeafe;
+            color: #1d4ed8;
+            font-weight: 600;
+        }
+        
+        .day-number {
+            font-weight: 600;
+            margin-bottom: 0.125rem;
+        }
+        
+        .day-name {
+            font-size: 0.625rem;
+            color: #6b7280;
+        }
+        
+        /* Gantt Chart Body */
+        .gantt-body {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .gantt-row {
+            display: flex;
+            border-bottom: 1px solid #f3f4f6;
+            min-height: 60px;
+            align-items: center;
+        }
+        
+        .gantt-row:hover {
+            background-color: #f9fafb;
+        }
+        
+        .gantt-row.project-even {
+            background-color: #ffffff;
+        }
+        
+        .gantt-row.project-odd {
+            background-color: #f8f9fa;
+        }
+        
+        /* Task Info Section */
+        .gantt-task-info {
+            width: 300px;
+            min-width: 300px;
+            padding: 0.75rem;
+            border-right: 1px solid #e5e7eb;
+        }
+        
+        .task-project {
+            font-size: 0.75rem;
+            color: #6b7280;
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+        }
+        
+        .task-title {
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 0.5rem;
+            line-height: 1.3;
+        }
+        
+        .task-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .task-assignee {
+            font-size: 0.75rem;
+            color: #6b7280;
+        }
+        
+        /* Timeline Section */
+        .gantt-timeline {
+            flex: 1;
+            min-width: 800px;
+            position: relative;
+            height: 60px;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Task Bars */
+        .task-bar-container {
+            position: absolute;
+            height: 24px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .task-bar {
+            height: 100%;
+            border-radius: 4px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        
+        .task-bar:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .task-bar-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            pointer-events: none;
+        }
+        
+        .task-bar-text {
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+            z-index: 1;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        
+        .task-bar-placeholder {
+            color: #9ca3af;
+            font-size: 0.75rem;
+            padding: 0 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* Task Bar Status Colors */
+        .task-bar.status-planning {
+            background-color: #8b5cf6;
+        }
+        
+        .task-bar.status-active {
+            background-color: #3b82f6;
+        }
+        
+        .task-bar.status-review {
+            background-color: #f59e0b;
+        }
+        
+        .task-bar.status-fixing {
+            background-color: #f97316;
+        }
+        
+        .task-bar.status-responded {
+            background-color: #06b6d4;
+        }
+        
+        .task-bar.status-completed {
+            background-color: #22c55e;
+        }
+        
+        .task-bar.status-paused {
+            background-color: #6b7280;
+        }
+        
+        .task-bar.status-cancelled {
+            background-color: #ef4444;
+        }
+        
+        .task-bar.status-default {
+            background-color: #9ca3af;
+        }
+        
+        .task-bar.overdue {
+            border: 2px solid #dc2626;
+            animation: pulse-red 2s infinite;
+        }
+        
+        @keyframes pulse-red {
+            0%, 100% { border-color: #dc2626; }
+            50% { border-color: #ef4444; }
+        }
+
+        /* Modal Styling */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.hidden {
+            display: none;
+        }
+        
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-content {
+            position: relative;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            max-width: 800px;
+            max-height: 90vh;
+            width: 90%;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #111827;
+            margin: 0;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 0.5rem;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: #6b7280;
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        /* Task Details Styling */
+        .task-details {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+        
+        .task-header-details {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .task-title-large {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: #111827;
+            margin: 0;
+            line-height: 1.4;
+        }
+        
+        .task-badges {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .task-details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+        
+        @media (max-width: 640px) {
+            .task-details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .detail-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .detail-section.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .detail-section h5 {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .detail-item:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-label {
+            font-weight: 500;
+            color: #6b7280;
+            flex-shrink: 0;
+            margin-right: 1rem;
+        }
+        
+        .detail-value {
+            color: #111827;
+            text-align: right;
+            flex-grow: 1;
+        }
+        
+        .detail-progress-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .task-description {
+            background-color: #f9fafb;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            color: #374151;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+        
+        .task-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.75rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .loading-spinner {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            color: #6b7280;
+        }
+
+        /* Project Background Colors */
         .project-bg-even {
             background-color: #f8f9fa !important;
         }
