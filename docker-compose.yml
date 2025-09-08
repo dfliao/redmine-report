@@ -50,7 +50,7 @@ services:
       - LDAP_LOGIN_ATTR=${LDAP_LOGIN_ATTR:-uid}
 
       # Photo Service Configuration
-      - PHOTO_BASE_PATH=${PHOTO_BASE_PATH:-/volume1/photo/@@案場施工照片}
+      - PHOTO_BASE_PATH=${PHOTO_BASE_PATH:-/volume4/photo/@@案場施工照片}
 
       # Debug Configuration
       - DEBUG=${DEBUG:-false}
@@ -61,7 +61,7 @@ services:
     volumes:
       - /volume1/ai-stack2/redmine-report/output:/app/output:rw
       - /volume1/ai-stack2/redmine-report/src/main/resources/config:/app/src/main/resources/config:ro
-      - /volume1/photo:/volume1/photo:ro
+      - /volume4/photo:/volume4/photo:ro
 
     # Note: external_links not needed in host network mode
 

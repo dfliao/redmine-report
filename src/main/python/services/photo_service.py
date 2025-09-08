@@ -25,7 +25,7 @@ class PhotoService:
         self.settings = settings
         
         # Photo settings
-        self.photo_base_path = getattr(settings, 'PHOTO_BASE_PATH', '/volume1/photo/@@案場施工照片')
+        self.photo_base_path = getattr(settings, 'PHOTO_BASE_PATH', '/volume4/photo/@@案場施工照片')
         self.synology_host = getattr(settings, 'SYNOLOGY_DSM_HOST', 'localhost')
         self.synology_port = getattr(settings, 'SYNOLOGY_DSM_PORT', 5001)
         self.photos_web_url = f"https://{self.synology_host}:{self.synology_port}/photo"
