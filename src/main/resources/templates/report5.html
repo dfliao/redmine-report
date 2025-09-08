@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - Redmine 報表系統</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="{{ url_for('static', path='/css/main.css') }}" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%232563eb'><path d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z'/></svg>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">R</div>
+                    <span>Redmine 報表系統</span>
+                </div>
+                <nav class="nav">
+                    <a href="/" class="nav-link">首頁</a>
+                    <a href="/report1" class="nav-link">報表一</a>
+                    <a href="/report2" class="nav-link">報表二</a>
+                    <a href="/report3" class="nav-link">報表三</a>
+                    <a href="/report4" class="nav-link">報表四</a>
+                    <a href="/report5" class="nav-link active">報表五</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="container">
+            <!-- Page Header -->
+            <div class="mb-8">
+                <h1>📷 報表五：近期施工照片</h1>
+                <p class="text-sm">
+                    施工現場照片記錄 (預設查詢過去14天)
+                </p>
+            </div>
+
+            <!-- Controls -->
+            <div class="card mb-6">
+                <div class="card-header">
+                    <h3 class="card-title">篩選條件</h3>
+                    <div class="card-subtitle">設定查詢條件來檢視施工照片記錄</div>
+                </div>
+                <div class="card-body">
+                    <!-- Date Range -->
+                    <div class="form-row mb-4">
+                        <div class="form-group">
+                            <label class="form-label" for="start-date">施工期間 - 起始日期</label>
+                            <input type="date" class="form-select" id="start-date" onchange="updateReport()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="end-date">施工期間 - 結束日期</label>
+                            <input type="date" class="form-select" id="end-date" onchange="updateReport()">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">快速選擇</label>
+                            <select class="form-select" id="quick-date-range" onchange="setQuickDateRange()">
+                                <option value="">自訂範圍</option>
+                                <option value="7">過去 7 天</option>
+                                <option value="14" selected>過去 14 天</option>
+                                <option value="30">過去 30 天</option>
+                                <option value="60">過去 60 天</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Project Filter -->
+                    <div class="form-row mb-4">
+                        <div class="form-group">
+                            <label class="form-label" for="project-filter">專案篩選</label>
+                            <select class="form-select" id="project-filter" onchange="updateReport()">
+                                <option value="">所有專案</option>
+                                <!-- Options loaded dynamically -->
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">操作</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button onclick="clearAllFilters()" class="btn btn-secondary">
+                                    清除篩選
+                                </button>
+                                <button onclick="refreshReport()" class="btn btn-primary">
+                                    <span class="spinner hidden" id="refresh-spinner"></span>
+                                    重新載入
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter Summary -->
+                    <div class="filter-summary" id="filter-summary" style="display: none;">
+                        <div class="alert alert-info">
+                            <strong>📊 篩選結果</strong>
+                            <span id="filter-summary-text"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="card mb-6 hidden">
+                <div class="card-body text-center">
+                    <div class="spinner" style="margin: 0 auto 1rem;"></div>
+                    <p>正在載入施工照片...</p>
+                </div>
+            </div>
+
+            <!-- Construction Photos Display -->
+            <div class="card mb-8" id="photos-container">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
+                        </svg>
+                        施工照片記錄
+                    </h3>
+                    <div class="card-subtitle">
+                        <span id="filter-status">載入中...</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="photos-content">
+                        <div class="text-center" style="padding: 2rem; color: #666;">
+                            載入中...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Photo Detail Modal -->
+    <div id="photo-modal" class="modal hidden">
+        <div class="modal-overlay" onclick="closePhotoModal()"></div>
+        <div class="modal-content photo-modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">施工照片詳情</h3>
+                <button class="modal-close" onclick="closePhotoModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="photo-details-content">
+                    <div class="loading-spinner">載入中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Global variables
+        let currentData = null;
+        let availableProjects = [];
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFilters();
+        });
+        
+        // Initialize filters and load initial data
+        async function initializeFilters() {
+            try {
+                // Set default date range (past 14 days)
+                setQuickDateRange();
+                
+                // Load projects for filter options
+                await loadFilterOptions();
+                
+                // Load initial data
+                await refreshReport();
+                
+            } catch (error) {
+                console.error('Error initializing filters:', error);
+                alert('❌ 初始化篩選器失敗：' + error.message);
+            }
+        }
+        
+        // Load filter options from API
+        async function loadFilterOptions() {
+            try {
+                // Load projects
+                const projectsResponse = await fetch('/api/report5/projects');
+                const projectsResult = await projectsResponse.json();
+                if (projectsResult.success) {
+                    availableProjects = projectsResult.data;
+                    populateProjectFilter();
+                }
+                
+            } catch (error) {
+                console.error('Error loading filter options:', error);
+            }
+        }
+        
+        // Populate project filter dropdown
+        function populateProjectFilter() {
+            const select = document.getElementById('project-filter');
+            
+            // Clear existing options (except the default)
+            while (select.children.length > 1) {
+                select.removeChild(select.lastChild);
+            }
+            
+            // Add project options
+            availableProjects.forEach(project => {
+                const option = document.createElement('option');
+                option.value = project.name;
+                option.textContent = `${project.name} (${project.folder_count} 天)`;
+                select.appendChild(option);
+            });
+        }
+        
+        // Set quick date range
+        function setQuickDateRange() {
+            const quickSelect = document.getElementById('quick-date-range');
+            const days = parseInt(quickSelect.value);
+            
+            if (days) {
+                const today = new Date();
+                const pastDate = new Date();
+                pastDate.setDate(today.getDate() - days);
+                
+                document.getElementById('start-date').value = pastDate.toISOString().split('T')[0];
+                document.getElementById('end-date').value = today.toISOString().split('T')[0];
+            }
+            
+            // Trigger update if not initial load
+            if (availableProjects.length > 0) {
+                updateReport();
+            }
+        }
+        
+        // Clear all filters
+        function clearAllFilters() {
+            document.getElementById('start-date').value = '';
+            document.getElementById('end-date').value = '';
+            document.getElementById('project-filter').value = '';
+            document.getElementById('quick-date-range').value = '';
+            
+            updateReport();
+        }
+        
+        // Update report based on current filters
+        function updateReport() {
+            refreshReport();
+        }
+        
+        // Refresh report data with current filters
+        async function refreshReport() {
+            const loadingState = document.getElementById('loading-state');
+            const spinner = document.getElementById('refresh-spinner');
+            
+            // Show loading state
+            loadingState.classList.remove('hidden');
+            spinner.classList.remove('hidden');
+            
+            try {
+                // Get filter values
+                const startDate = document.getElementById('start-date').value;
+                const endDate = document.getElementById('end-date').value;
+                const projectFilter = document.getElementById('project-filter').value;
+                
+                // Build query parameters
+                const params = new URLSearchParams();
+                if (startDate) params.append('start_date', startDate);
+                if (endDate) params.append('end_date', endDate);
+                if (projectFilter) params.append('project_filter', projectFilter);
+                
+                const response = await fetch(`/api/report5/data?${params.toString()}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentData = result.data;
+                    updatePhotosDisplay(result.data.photos_data);
+                    updateFilterStatus(result.data.filters, result.data.total_count);
+                } else {
+                    throw new Error(result.message || '載入失敗');
+                }
+            } catch (error) {
+                alert('❌ 載入施工照片失敗：' + error.message);
+            } finally {
+                loadingState.classList.add('hidden');
+                spinner.classList.add('hidden');
+            }
+        }
+        
+        // Update photos display
+        function updatePhotosDisplay(data) {
+            const content = document.getElementById('photos-content');
+            
+            if (!data || data.length === 0) {
+                content.innerHTML = '<div class="text-center" style="padding: 2rem; color: #666;">無施工照片資料</div>';
+                return;
+            }
+            
+            // Group data by project
+            const dataByProject = {};
+            data.forEach(record => {
+                if (!dataByProject[record.project_name]) {
+                    dataByProject[record.project_name] = [];
+                }
+                dataByProject[record.project_name].push(record);
+            });
+            
+            let html = '';
+            Object.keys(dataByProject).forEach((projectName, index) => {
+                const projectRecords = dataByProject[projectName];
+                const isEvenProject = index % 2 === 0;
+                
+                html += `
+                    <div class="project-section ${isEvenProject ? 'project-even' : 'project-odd'}">
+                        <h4 class="project-title">${projectName}</h4>
+                        <div class="construction-records">
+                `;
+                
+                projectRecords.forEach(record => {
+                    const hasPhotos = record.photo_count > 0;
+                    const statusClass = hasPhotos ? 'has-photos' : 'no-photos';
+                    
+                    html += `
+                        <div class="construction-record ${statusClass}">
+                            <div class="record-info">
+                                <div class="record-date">${formatDate(record.construction_date)}</div>
+                                <div class="record-description">${record.construction_description}</div>
+                                <div class="record-count">${hasPhotos ? `${record.photo_count} 張照片` : '無照片'}</div>
+                            </div>
+                            <div class="record-photos">
+                                ${hasPhotos ? generatePhotosHTML(record) : '<div class="no-photo-placeholder">沒有</div>'}
+                            </div>
+                            ${hasPhotos ? `
+                            <div class="record-actions">
+                                <button onclick="openSynologyPhotos('${record.photos_web_url}')" class="btn btn-secondary btn-sm">
+                                    在 Synology Photos 中查看
+                                </button>
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            });
+            
+            content.innerHTML = html;
+        }
+        
+        // Generate photos HTML for a record
+        function generatePhotosHTML(record) {
+            if (!record.photos || record.photos.length === 0) {
+                return '<div class="no-photo-placeholder">沒有</div>';
+            }
+            
+            let html = '<div class="photo-grid">';
+            record.photos.forEach((photo, index) => {
+                html += `
+                    <div class="photo-thumbnail" onclick="showPhotoDetail('${record.project_name}', '${record.construction_date}', ${index})">
+                        <img src="${photo.thumbnail_base64}" alt="${photo.filename}" loading="lazy">
+                        <div class="photo-filename">${photo.filename}</div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            
+            return html;
+        }
+        
+        // Update filter status display
+        function updateFilterStatus(filters, totalCount) {
+            const element = document.getElementById('filter-status');
+            const summaryElement = document.getElementById('filter-summary');
+            const summaryTextElement = document.getElementById('filter-summary-text');
+            
+            // Build status text
+            let statusParts = [];
+            
+            if (filters.start_date && filters.end_date) {
+                statusParts.push(`期間: ${filters.start_date} 至 ${filters.end_date}`);
+            } else if (filters.start_date) {
+                statusParts.push(`起始: ${filters.start_date}`);
+            } else if (filters.end_date) {
+                statusParts.push(`截止: ${filters.end_date}`);
+            }
+            
+            if (filters.project_filter) {
+                statusParts.push(`專案: ${filters.project_filter}`);
+            }
+            
+            if (statusParts.length === 0) {
+                statusParts.push('顯示所有資料');
+            }
+            
+            element.textContent = statusParts.join(' | ');
+            
+            // Update summary
+            summaryTextElement.textContent = ` - 找到 ${totalCount} 筆施工記錄`;
+            
+            // Show/hide summary based on filters
+            if (filters.start_date || filters.end_date || filters.project_filter) {
+                summaryElement.style.display = 'block';
+            } else {
+                summaryElement.style.display = 'none';
+            }
+        }
+        
+        // Open Synology Photos
+        function openSynologyPhotos(url) {
+            if (url) {
+                window.open(url, '_blank');
+            } else {
+                alert('❌ 無法開啟 Synology Photos 連結');
+            }
+        }
+        
+        // Show photo detail
+        function showPhotoDetail(projectName, date, photoIndex) {
+            // Find the record and photo
+            const record = currentData.photos_data.find(r => 
+                r.project_name === projectName && r.construction_date === date
+            );
+            
+            if (!record || !record.photos || !record.photos[photoIndex]) {
+                alert('❌ 找不到照片資料');
+                return;
+            }
+            
+            const photo = record.photos[photoIndex];
+            
+            // Show modal with photo details
+            const modal = document.getElementById('photo-modal');
+            const content = document.getElementById('photo-details-content');
+            
+            content.innerHTML = `
+                <div class="photo-detail">
+                    <div class="photo-detail-image">
+                        <img src="${photo.thumbnail_base64}" alt="${photo.filename}">
+                    </div>
+                    <div class="photo-detail-info">
+                        <h4>${photo.filename}</h4>
+                        <div class="photo-meta">
+                            <div><strong>專案：</strong> ${projectName}</div>
+                            <div><strong>施工日期：</strong> ${formatDate(date)}</div>
+                            <div><strong>檔案大小：</strong> ${formatFileSize(photo.file_size)}</div>
+                            <div><strong>拍攝時間：</strong> ${photo.modified_time}</div>
+                        </div>
+                        <div class="photo-actions">
+                            <button onclick="openSynologyPhotos('${record.photos_web_url}')" class="btn btn-primary">
+                                在 Synology Photos 中查看完整相簿
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            modal.classList.remove('hidden');
+        }
+        
+        // Close photo modal
+        function closePhotoModal() {
+            document.getElementById('photo-modal').classList.add('hidden');
+        }
+        
+        // Utility functions
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('zh-TW', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'short'
+            });
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        // Close modal when clicking outside
+        document.addEventListener('click', function(e) {
+            const modal = document.getElementById('photo-modal');
+            const modalContent = modal.querySelector('.modal-content');
+            
+            if (modal && !modal.classList.contains('hidden') && !modalContent.contains(e.target)) {
+                closePhotoModal();
+            }
+        });
+        
+        // Close modal with Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closePhotoModal();
+            }
+        });
+    </script>
+    
+    <!-- Construction Photos Styles -->
+    <style>
+        /* Alert styling */
+        .alert {
+            padding: 1rem;
+            border-radius: 0.375rem;
+            border: 1px solid transparent;
+        }
+        
+        .alert-info {
+            background-color: #dbeafe;
+            border-color: #93c5fd;
+            color: #1e40af;
+        }
+        
+        /* Project sections */
+        .project-section {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .project-section.project-even {
+            background-color: #ffffff;
+        }
+        
+        .project-section.project-odd {
+            background-color: #f8f9fa;
+        }
+        
+        .project-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+        
+        /* Construction records */
+        .construction-records {
+            display: grid;
+            gap: 1rem;
+        }
+        
+        .construction-record {
+            display: grid;
+            grid-template-columns: 200px 1fr auto;
+            gap: 1rem;
+            align-items: center;
+            padding: 1rem;
+            border-radius: 0.375rem;
+            border: 1px solid #e5e7eb;
+            background-color: white;
+        }
+        
+        .construction-record.no-photos {
+            opacity: 0.6;
+        }
+        
+        /* Record info */
+        .record-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .record-date {
+            font-weight: 600;
+            color: #111827;
+        }
+        
+        .record-description {
+            color: #6b7280;
+            font-size: 0.875rem;
+        }
+        
+        .record-count {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
+        
+        /* Photos display */
+        .record-photos {
+            flex: 1;
+        }
+        
+        .photo-grid {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .photo-thumbnail {
+            width: 80px;
+            height: 60px;
+            border-radius: 0.25rem;
+            overflow: hidden;
+            cursor: pointer;
+            transition: transform 0.2s;
+            border: 1px solid #e5e7eb;
+            position: relative;
+        }
+        
+        .photo-thumbnail:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .photo-thumbnail img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .photo-filename {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            font-size: 0.625rem;
+            padding: 0.125rem 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .no-photo-placeholder {
+            color: #9ca3af;
+            font-style: italic;
+            text-align: center;
+            padding: 1rem;
+            background-color: #f9fafb;
+            border-radius: 0.25rem;
+            border: 1px dashed #d1d5db;
+        }
+        
+        /* Modal styles */
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.hidden {
+            display: none;
+        }
+        
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-content {
+            position: relative;
+            background-color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            max-width: 800px;
+            max-height: 90vh;
+            width: 90%;
+            overflow-y: auto;
+        }
+        
+        .photo-modal-content {
+            max-width: 900px;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .modal-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #111827;
+            margin: 0;
+        }
+        
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #9ca3af;
+            cursor: pointer;
+            padding: 0.5rem;
+            line-height: 1;
+        }
+        
+        .modal-close:hover {
+            color: #6b7280;
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        /* Photo detail styles */
+        .photo-detail {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 1.5rem;
+        }
+        
+        .photo-detail-image img {
+            width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .photo-detail-info h4 {
+            margin: 0 0 1rem 0;
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+        
+        .photo-meta div {
+            margin-bottom: 0.5rem;
+            color: #374151;
+        }
+        
+        .photo-actions {
+            margin-top: 1.5rem;
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .construction-record {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+            }
+            
+            .photo-detail {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-row {
+                display: block;
+            }
+            
+            .form-group {
+                margin-bottom: 1rem;
+            }
+        }
+        
+        /* Form styling */
+        .form-row {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: end;
+        }
+        
+        .form-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #374151;
+        }
+        
+        .form-select {
+            width: 100%;
+            padding: 0.5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+        }
+        
+        .form-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .filter-summary {
+            margin-top: 1rem;
+        }
+    </style>
+</body>
+</html>

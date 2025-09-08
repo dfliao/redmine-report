@@ -18,6 +18,7 @@ import logging
 from ..services.redmine_service import RedmineService
 from ..services.report_generator import ReportGenerator
 from ..services.synology_service import SynologyService
+from ..services.photo_service import PhotoService
 from ..utils.config import get_settings
 
 # Setup logging
@@ -39,15 +40,17 @@ app.mount("/static", StaticFiles(directory="src/main/resources/static"), name="s
 redmine_service: Optional[RedmineService] = None
 report_generator: Optional[ReportGenerator] = None
 synology_service: Optional[SynologyService] = None
+photo_service: Optional[PhotoService] = None
 
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    global redmine_service, report_generator, synology_service
+    global redmine_service, report_generator, synology_service, photo_service
     
     settings = get_settings()
     redmine_service = RedmineService(settings)
     synology_service = SynologyService(settings)
+    photo_service = PhotoService(settings)
     
     # Import services here to avoid circular imports
     from ..services.email_service import EmailService
@@ -336,6 +339,83 @@ async def get_report4_trackers():
         }
     except Exception as e:
         logger.error(f"Get trackers API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Report 5 - Construction Photos
+@app.get("/report5", response_class=HTMLResponse)
+async def report5_page(request: Request):
+    """Report 5 - Construction Photos"""
+    return templates.TemplateResponse("report5.html", {
+        "request": request,
+        "title": "報表五：近期施工照片"
+    })
+
+@app.get("/api/report5/data")
+async def get_report5_data(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    project_filter: Optional[str] = None
+):
+    """API endpoint for Report 5 data - Construction photos with filtering options"""
+    try:
+        if not photo_service:
+            raise HTTPException(status_code=500, detail="Photo service not initialized")
+        
+        # Parse date parameters
+        parsed_start_date = None
+        parsed_end_date = None
+        
+        if start_date:
+            try:
+                parsed_start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+        
+        if end_date:
+            try:
+                parsed_end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+        
+        # Get construction photos with filters
+        photos_data = await photo_service.get_construction_photos(
+            start_date=parsed_start_date,
+            end_date=parsed_end_date,
+            project_filter=project_filter
+        )
+        
+        return {
+            "success": True,
+            "data": {
+                "photos_data": photos_data,
+                "filters": {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "project_filter": project_filter
+                },
+                "total_count": len(photos_data)
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Report 5 API error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/report5/projects")
+async def get_report5_projects():
+    """Get list of available construction projects for Report 5 filtering"""
+    try:
+        if not photo_service:
+            raise HTTPException(status_code=500, detail="Photo service not initialized")
+        
+        projects = await photo_service.get_available_projects()
+        return {
+            "success": True,
+            "data": projects
+        }
+    except Exception as e:
+        logger.error(f"Get construction projects API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/test-synology-connection")
