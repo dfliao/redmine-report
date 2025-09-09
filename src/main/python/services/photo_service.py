@@ -33,7 +33,61 @@ class PhotoService:
         # Date regex pattern for folder names: yyyy.mm.dd<<description>>
         self.date_pattern = re.compile(r'(\d{4})\.(\d{2})\.(\d{2})(.*)')
         
-        logger.info("Initialized Photo service")
+        # Initialize and validate photo path
+        self._initialize_photo_path()
+        
+        logger.info(f"Initialized Photo service with base path: {self.photo_base_path}")
+    
+    def _initialize_photo_path(self):
+        """Initialize and validate the photo base path"""
+        logger.info(f"Validating photo base path: {self.photo_base_path}")
+        
+        if not os.path.exists(self.photo_base_path):
+            logger.warning(f"Configured photo path does not exist: {self.photo_base_path}")
+            
+            # Try to find alternative paths
+            alternative_paths = [
+                '/volume4/photo/@@案場施工照片',
+                '/volume4/photo',
+                '/photo/@@案場施工照片',
+                '/photo',
+                '/app/photo/@@案場施工照片',
+                '/app/photo',
+                '/volume1/photo/@@案場施工照片',
+                '/volume1/photo'
+            ]
+            
+            for alt_path in alternative_paths:
+                logger.info(f"Checking alternative path: {alt_path}")
+                if os.path.exists(alt_path):
+                    logger.info(f"Found alternative path: {alt_path}")
+                    try:
+                        # Test directory access
+                        contents = os.listdir(alt_path)
+                        logger.info(f"Contents of {alt_path}: {len(contents)} items")
+                        
+                        # If this is a photo base directory, check for projects
+                        if alt_path.endswith('@@案場施工照片'):
+                            self.photo_base_path = alt_path
+                            logger.info(f"Updated photo base path to: {self.photo_base_path}")
+                            break
+                        else:
+                            # Check if it contains the photos directory
+                            if '@@案場施工照片' in contents:
+                                actual_path = os.path.join(alt_path, '@@案場施工照片')
+                                if os.path.isdir(actual_path):
+                                    self.photo_base_path = actual_path
+                                    logger.info(f"Found photos directory at: {self.photo_base_path}")
+                                    break
+                                    
+                    except Exception as e:
+                        logger.warning(f"Cannot access {alt_path}: {e}")
+            
+            # Final validation
+            if not os.path.exists(self.photo_base_path):
+                logger.error(f"No valid photo path found. Current path: {self.photo_base_path}")
+            else:
+                logger.info(f"Successfully validated photo path: {self.photo_base_path}")
     
     async def get_construction_photos(self, start_date: date = None, end_date: date = None, 
                                     project_filter: str = None) -> List[Dict]:
@@ -55,39 +109,63 @@ class PhotoService:
                 end_date = date.today()
                 
             logger.info(f"Scanning construction photos from {start_date} to {end_date}, project: {project_filter}")
+            logger.info(f"Photo base path: {self.photo_base_path}")
             
-            # Scan the base photo directory
+            # Check if base photo directory exists
             if not os.path.exists(self.photo_base_path):
                 logger.error(f"Photo base path does not exist: {self.photo_base_path}")
+                return []
+            
+            # Check directory permissions and contents
+            try:
+                all_items = os.listdir(self.photo_base_path)
+                logger.info(f"Total items in photo base path: {len(all_items)}")
+                logger.info(f"First 10 items: {all_items[:10]}")
+            except PermissionError:
+                logger.error(f"Permission denied accessing: {self.photo_base_path}")
+                return []
+            except Exception as e:
+                logger.error(f"Error listing directory {self.photo_base_path}: {e}")
                 return []
             
             construction_records = []
             
             # Get all project directories
-            project_dirs = [d for d in os.listdir(self.photo_base_path) 
-                          if os.path.isdir(os.path.join(self.photo_base_path, d))]
+            project_dirs = []
+            for item in all_items:
+                item_path = os.path.join(self.photo_base_path, item)
+                if os.path.isdir(item_path):
+                    project_dirs.append(item)
+                    logger.info(f"Found project directory: {item}")
+            
+            logger.info(f"Found {len(project_dirs)} project directories: {project_dirs}")
             
             for project_name in project_dirs:
                 # Apply project filter
                 if project_filter and project_filter.lower() not in project_name.lower():
+                    logger.info(f"Skipping project {project_name} due to filter: {project_filter}")
                     continue
                     
                 project_path = os.path.join(self.photo_base_path, project_name)
+                logger.info(f"Processing project: {project_name} at {project_path}")
                 
                 # Get construction date folders for this project
                 project_records = await self._scan_project_photos(
                     project_name, project_path, start_date, end_date
                 )
                 construction_records.extend(project_records)
+                logger.info(f"Found {len(project_records)} records for project {project_name}")
             
             # Sort by project name, then by date (newest first)
             construction_records.sort(key=lambda x: (x['project_name'], x['construction_date']), reverse=True)
             
-            logger.info(f"Found {len(construction_records)} construction photo records")
+            logger.info(f"Total construction photo records found: {len(construction_records)}")
             return construction_records
             
         except Exception as e:
             logger.error(f"Error getting construction photos: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise
     
     async def _scan_project_photos(self, project_name: str, project_path: str, 
@@ -101,8 +179,18 @@ class PhotoService:
                 return records
             
             # Get all subdirectories (construction date folders)
-            date_dirs = [d for d in os.listdir(project_path) 
-                        if os.path.isdir(os.path.join(project_path, d))]
+            try:
+                all_items = os.listdir(project_path)
+                date_dirs = []
+                for item in all_items:
+                    item_path = os.path.join(project_path, item)
+                    if os.path.isdir(item_path):
+                        date_dirs.append(item)
+                
+                logger.info(f"Project {project_name}: Found {len(date_dirs)} subdirectories: {date_dirs[:10]}")
+            except Exception as e:
+                logger.error(f"Error listing project directory {project_path}: {e}")
+                return records
             
             # Generate expected dates in range for missing date detection
             current_date = start_date
@@ -280,29 +368,51 @@ class PhotoService:
     async def get_available_projects(self) -> List[Dict]:
         """Get list of available construction projects"""
         try:
+            logger.info(f"Getting available projects from: {self.photo_base_path}")
+            
             if not os.path.exists(self.photo_base_path):
                 logger.error(f"Photo base path does not exist: {self.photo_base_path}")
                 return []
             
             projects = []
-            project_dirs = [d for d in os.listdir(self.photo_base_path) 
-                          if os.path.isdir(os.path.join(self.photo_base_path, d))]
-            
-            for project_dir in project_dirs:
-                project_path = os.path.join(self.photo_base_path, project_dir)
+            try:
+                all_items = os.listdir(self.photo_base_path)
+                project_dirs = []
+                for item in all_items:
+                    item_path = os.path.join(self.photo_base_path, item)
+                    if os.path.isdir(item_path):
+                        project_dirs.append(item)
                 
-                # Count construction date folders
-                date_folders = [d for d in os.listdir(project_path) 
-                              if os.path.isdir(os.path.join(project_path, d)) and self.date_pattern.match(d)]
+                logger.info(f"Found {len(project_dirs)} potential project directories: {project_dirs}")
                 
-                projects.append({
-                    'name': project_dir,
-                    'folder_count': len(date_folders)
-                })
-            
-            projects.sort(key=lambda x: x['name'])
-            return projects
+                for project_dir in project_dirs:
+                    project_path = os.path.join(self.photo_base_path, project_dir)
+                    
+                    # Count construction date folders
+                    try:
+                        all_subdirs = os.listdir(project_path)
+                        date_folders = [d for d in all_subdirs 
+                                      if os.path.isdir(os.path.join(project_path, d)) and self.date_pattern.match(d)]
+                        
+                        logger.info(f"Project {project_dir}: {len(date_folders)} date folders out of {len(all_subdirs)} total subdirs")
+                        
+                        projects.append({
+                            'name': project_dir,
+                            'folder_count': len(date_folders)
+                        })
+                    except Exception as e:
+                        logger.warning(f"Cannot access project directory {project_path}: {e}")
+                
+                projects.sort(key=lambda x: x['name'])
+                logger.info(f"Returning {len(projects)} projects: {[p['name'] for p in projects]}")
+                return projects
+                
+            except Exception as e:
+                logger.error(f"Error listing photo base path: {e}")
+                return []
             
         except Exception as e:
             logger.error(f"Error getting available projects: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return []
