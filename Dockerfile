@@ -24,23 +24,24 @@ RUN useradd --create-home --shell /bin/bash redmine
 # Set working directory
 WORKDIR /app
 
-# Copy Python packages from builder stage
+# Copy Python packages from builder stage to both user locations for flexibility
 COPY --from=builder /root/.local /home/redmine/.local
+COPY --from=builder /root/.local /root/.local
 
 # Copy application code
 COPY src/ /app/src/
 COPY output/ /app/output/
 
-# Set environment variables
-ENV PATH="/home/redmine/.local/bin:$PATH"
+# Set environment variables for both root and non-root users
+ENV PATH="/home/redmine/.local/bin:/root/.local/bin:$PATH"
 ENV PYTHONPATH="/app"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Change ownership to non-root user
-RUN chown -R redmine:redmine /app
+# Change ownership to non-root user (but keep root accessible for user switching)
+RUN chown -R redmine:redmine /app /home/redmine/.local
 
-# Switch to non-root user
+# Default to non-root user (can be overridden by docker-compose)
 USER redmine
 
 # Create output directory with proper permissions
