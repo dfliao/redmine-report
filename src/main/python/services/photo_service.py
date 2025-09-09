@@ -28,7 +28,12 @@ class PhotoService:
         self.photo_base_path = getattr(settings, 'PHOTO_BASE_PATH', '/volume4/photo/@@案場施工照片')
         self.synology_host = getattr(settings, 'SYNOLOGY_DSM_HOST', 'localhost')
         self.synology_port = getattr(settings, 'SYNOLOGY_DSM_PORT', 5001)
-        self.photos_web_url = f"https://{self.synology_host}:{self.synology_port}/photo"
+        
+        # Use the correct Synology Photos URL format
+        if self.synology_host == '192.168.0.222':
+            self.photos_web_url = "https://gopeaknas.synology.me/photo"
+        else:
+            self.photos_web_url = f"https://{self.synology_host}:{self.synology_port}/photo"
         
         # Date regex pattern for folder names: yyyy.mm.dd<<description>>
         self.date_pattern = re.compile(r'(\d{4})\.(\d{2})\.(\d{2})(.*)')
@@ -328,16 +333,15 @@ class PhotoService:
     async def _generate_photos_url(self, project_name: str, date_folder: str) -> str:
         """Generate Synology Photos web URL for the folder"""
         try:
-            # Base URL pattern: https://hostname:5001/photo/#/shared_space/folder/ID
-            # For now, we'll generate a basic URL - actual folder ID would need API call
-            # This is a simplified version that constructs a path-based URL
+            # Since we don't have the actual folder ID from Synology Photos API,
+            # we'll return the shared space URL where users can navigate to the folder
+            # The correct format would be: https://gopeaknas.synology.me/photo/#/shared_space/folder/{folder_id}
+            # But without API integration, we can't get the folder_id
             
-            encoded_project = requests.utils.quote(project_name)
-            encoded_folder = requests.utils.quote(date_folder)
+            # For now, return shared_space root where users can navigate manually
+            photos_url = f"{self.photos_web_url}/#/shared_space"
             
-            # Construct URL (simplified - actual implementation would need folder ID from API)
-            photos_url = f"{self.photos_web_url}/#/shared_space/folder_path/@@案場施工照片/{encoded_project}/{encoded_folder}"
-            
+            logger.info(f"Generated Synology Photos URL: {photos_url}")
             return photos_url
             
         except Exception as e:
