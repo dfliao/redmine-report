@@ -192,16 +192,6 @@ class PhotoService:
                 logger.error(f"Error listing project directory {project_path}: {e}")
                 return records
             
-            # Generate expected dates in range for missing date detection
-            current_date = start_date
-            expected_dates = []
-            while current_date <= end_date:
-                expected_dates.append(current_date)
-                current_date += timedelta(days=1)
-            
-            # Track found dates
-            found_dates = set()
-            
             for date_dir in date_dirs:
                 # Parse date from folder name using regex
                 match = self.date_pattern.match(date_dir)
@@ -215,43 +205,32 @@ class PhotoService:
                     
                     # Check if date is in range
                     if start_date <= construction_date <= end_date:
-                        found_dates.add(construction_date)
-                        
                         # Get photos from this date folder
                         date_folder_path = os.path.join(project_path, date_dir)
                         photos = await self._get_folder_photos(date_folder_path)
                         
-                        # Generate Synology Photos web URL
-                        photos_url = await self._generate_photos_url(project_name, date_dir)
-                        
-                        record = {
-                            'project_name': project_name,
-                            'construction_date': construction_date.strftime('%Y-%m-%d'),
-                            'construction_description': description or '施工作業',
-                            'photos': photos,
-                            'photo_count': len(photos),
-                            'photos_web_url': photos_url,
-                            'folder_name': date_dir
-                        }
-                        records.append(record)
+                        # Only add record if there are photos
+                        if photos and len(photos) > 0:
+                            # Generate Synology Photos web URL
+                            photos_url = await self._generate_photos_url(project_name, date_dir)
+                            
+                            record = {
+                                'project_name': project_name,
+                                'construction_date': construction_date.strftime('%Y-%m-%d'),
+                                'construction_description': description or '施工作業',
+                                'photos': photos,
+                                'photo_count': len(photos),
+                                'photos_web_url': photos_url,
+                                'folder_name': date_dir
+                            }
+                            records.append(record)
+                            logger.info(f"Added record for {project_name} on {construction_date} with {len(photos)} photos")
+                        else:
+                            logger.info(f"Skipping {project_name} on {construction_date} - no photos found")
                         
                 except ValueError as e:
                     logger.warning(f"Invalid date in folder name {date_dir}: {e}")
                     continue
-            
-            # Add missing dates with "沒有" status
-            for expected_date in expected_dates:
-                if expected_date not in found_dates:
-                    record = {
-                        'project_name': project_name,
-                        'construction_date': expected_date.strftime('%Y-%m-%d'),
-                        'construction_description': '沒有',
-                        'photos': [],
-                        'photo_count': 0,
-                        'photos_web_url': None,
-                        'folder_name': None
-                    }
-                    records.append(record)
             
             return records
             
