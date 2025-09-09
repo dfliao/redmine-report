@@ -6,6 +6,7 @@ services:
     container_name: redmine-report-service
     restart: unless-stopped
     network_mode: "host"  # Use host network to access external Redmine server
+    user: "0:0"  # Run as root to access Synology photo volumes
     environment:
       # Redmine Configuration
       - REDMINE_URL=${REDMINE_URL:-http://192.168.0.222:3000}
