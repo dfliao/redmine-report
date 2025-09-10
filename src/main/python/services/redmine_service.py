@@ -40,7 +40,8 @@ class RedmineService:
         self.active_statuses = ['執行中', '審核中', '修改中', '已完成(結案)']
         
         # Excluded projects for reports 1 & 2 (including sub-projects)
-        self.excluded_project_names = ['專項用']  # 專項用 project and its sub-projects
+        # These projects are included ONLY in Report 3 (special projects)
+        self.excluded_project_names = ['專項用', '物流中心']  # Special projects and their sub-projects
         
         logger.info(f"Initialized Redmine service for {settings.REDMINE_URL}")
     
