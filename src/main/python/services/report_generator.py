@@ -395,6 +395,139 @@ class ReportGenerator:
         html += "</tbody></table>"
         return html
     
+    async def generate_and_send_report5(self, recipients: Optional[List[str]] = None, days: int = 14, 
+                                       project_filter: str = None) -> dict:
+        """Generate and send Report 5 - Construction Photos"""
+        try:
+            logger.info("Starting Report 5 generation")
+            
+            # Get construction photos data
+            from .photo_service import PhotoService
+            photo_service = PhotoService(self.settings)
+            
+            # Calculate date range
+            end_date = datetime.now().date()
+            start_date = end_date - timedelta(days=days)
+            
+            photos_data = await photo_service.get_construction_photos(
+                start_date=start_date, 
+                end_date=end_date, 
+                project_filter=project_filter
+            )
+            
+            # Generate HTML report
+            html_content = self._generate_report5_html(photos_data, start_date, end_date, project_filter)
+            
+            # Determine recipients
+            if not recipients:
+                # Get all Redmine users as default recipients
+                recipients = await self._get_default_recipients(photos_data)
+            
+            # Send email
+            filter_text = f" (專案: {project_filter})" if project_filter else ""
+            subject = f"近期施工照片報表{filter_text} - {start_date.strftime('%Y/%m/%d')} 至 {end_date.strftime('%Y/%m/%d')}"
+            success = await self.email_service.send_report_email(subject, html_content, recipients)
+            
+            result = {
+                "status": "success" if success else "failed",
+                "message": f"Report 5 {'sent successfully' if success else 'failed to send'}",
+                "recipients": recipients,
+                "data_summary": {
+                    "projects_count": len(set([item['project_name'] for item in photos_data])),
+                    "photos_count": sum([item['photo_count'] for item in photos_data]),
+                    "date_range": f"{start_date} to {end_date}",
+                    "project_filter": project_filter or "所有專案"
+                }
+            }
+            
+            logger.info(f"Report 5 generation completed: {result['status']}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Failed to generate Report 5: {e}")
+            raise
+    
+    def _generate_report5_html(self, photos_data: List, start_date: date, end_date: date, 
+                              project_filter: str = None) -> str:
+        """Generate HTML content for Report 5 (Construction Photos)"""
+        
+        # Basic template
+        filter_text = f" (專案過濾: {project_filter})" if project_filter else ""
+        
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>近期施工照片報表</title>
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                h1 {{ color: #2c3e50; text-align: center; }}
+                h2 {{ color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 5px; }}
+                table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                th, td {{ border: 1px solid #ddd; padding: 12px; text-align: left; }}
+                th {{ background-color: #3498db; color: white; }}
+                tr:nth-child(even) {{ background-color: #f2f2f2; }}
+                .photos {{ display: flex; gap: 10px; flex-wrap: wrap; }}
+                .photo {{ max-width: 100px; max-height: 75px; border-radius: 4px; }}
+                .date-info {{ font-size: 0.9em; color: #666; }}
+            </style>
+        </head>
+        <body>
+            <h1>近期施工照片報表{filter_text}</h1>
+            <p class="date-info">報表期間: {start_date.strftime('%Y年%m月%d日')} 至 {end_date.strftime('%Y年%m月%d日')}</p>
+            
+            <h2>施工照片記錄</h2>
+        """
+        
+        if not photos_data:
+            html += "<p>查詢期間內無施工照片記錄</p>"
+        else:
+            html += """
+            <table>
+                <thead>
+                    <tr>
+                        <th>專案名稱</th>
+                        <th>施工日期</th>
+                        <th>施工內容</th>
+                        <th>照片數量</th>
+                        <th>施工照片</th>
+                    </tr>
+                </thead>
+                <tbody>
+            """
+            
+            for item in photos_data:
+                # Generate photo thumbnails
+                photo_html = ""
+                for photo in item['photos'][:3]:  # Show max 3 photos
+                    if photo.get('thumbnail_base64'):
+                        photo_html += f'<img src="{photo["thumbnail_base64"]}" class="photo" alt="{photo["filename"]}" title="{photo["filename"]}">'
+                
+                if not photo_html:
+                    photo_html = "無照片"
+                
+                html += f"""
+                <tr>
+                    <td>{item['project_name']}</td>
+                    <td>{item['construction_date']}</td>
+                    <td>{item['construction_description']}</td>
+                    <td>{item['photo_count']}</td>
+                    <td><div class="photos">{photo_html}</div></td>
+                </tr>
+                """
+            
+            html += "</tbody></table>"
+        
+        html += """
+            <br>
+            <p><small>本報表由Redmine報表系統自動產生</small></p>
+        </body>
+        </html>
+        """
+        
+        return html
+    
     async def generate_and_send_report(self, force=False, email_override=None) -> dict:
         """Generate and send default report (Report 1)"""
         recipients = [email_override] if email_override else None

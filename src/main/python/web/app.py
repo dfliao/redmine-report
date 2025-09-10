@@ -18,6 +18,17 @@ import logging
 from ..services.redmine_service import RedmineService
 from ..services.report_generator import ReportGenerator
 from ..services.synology_service import SynologyService
+
+def get_report_title(report_type: int) -> str:
+    """Get report title based on report type"""
+    titles = {
+        1: "Redmine 任務總欄",
+        2: "任務進度變更進度表",
+        3: "專項用專案報表",
+        4: "甘特圖",
+        5: "近期施工照片"
+    }
+    return titles.get(report_type, "未知報表")
 from ..services.photo_service import PhotoService
 from ..utils.config import get_settings
 
@@ -418,6 +429,56 @@ async def get_report5_projects():
         logger.error(f"Get construction projects API error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/report5/debug")
+async def debug_photo_paths():
+    """Debug endpoint to check photo paths and permissions"""
+    import os
+    debug_info = {
+        "photo_service_initialized": photo_service is not None,
+        "paths_checked": []
+    }
+    
+    if photo_service:
+        debug_info["configured_path"] = photo_service.photo_base_path
+    
+    # Check various possible paths
+    paths_to_check = [
+        '/volume4/photo',
+        '/volume4/photo/@@案場施工照片',
+        '/volume1/photo',
+        '/volume1/photo/@@案場施工照片',
+        '/photo',
+        '/photo/@@案場施工照片',
+        '/app/photo',
+        '/tmp'
+    ]
+    
+    for path in paths_to_check:
+        path_info = {
+            "path": path,
+            "exists": os.path.exists(path),
+            "is_dir": False,
+            "accessible": False,
+            "contents": []
+        }
+        
+        if path_info["exists"]:
+            path_info["is_dir"] = os.path.isdir(path)
+            try:
+                if path_info["is_dir"]:
+                    contents = os.listdir(path)
+                    path_info["accessible"] = True
+                    path_info["contents"] = contents[:10]  # First 10 items
+            except Exception as e:
+                path_info["error"] = str(e)
+        
+        debug_info["paths_checked"].append(path_info)
+    
+    return {
+        "success": True,
+        "data": debug_info
+    }
+
 @app.get("/api/test-synology-connection")
 async def test_synology_connection():
     """Test Synology DSM and LDAP connections"""
@@ -490,7 +551,7 @@ async def send_email_page(request: Request, type: int = 1):
             "report_type": type,
             "authenticated": False,
             "current_date": datetime.now().strftime("%Y-%m-%d"),
-            "title": f"發送報表 - {'Redmine 任務總欄' if type == 1 else '任務進度變更進度表'}"
+            "title": f"發送報表 - {get_report_title(type)}"
         })
     except Exception as e:
         logger.error(f"Send email page error: {e}")
@@ -522,7 +583,7 @@ async def authenticate_admin(
                 "authenticated": False,
                 "error": "認證失敗：請確認使用者名稱和密碼正確，且具有管理員權限",
                 "current_date": datetime.now().strftime("%Y-%m-%d"),
-                "title": f"發送報表 - {'Redmine 任務總欄' if type == 1 else '任務進度變更進度表'}"
+                "title": f"發送報表 - {get_report_title(type)}"
             })
         
         # Get users list for authenticated admin
@@ -534,7 +595,7 @@ async def authenticate_admin(
             "authenticated": True,
             "users": users,
             "current_date": datetime.now().strftime("%Y-%m-%d"),
-            "title": f"發送報表 - {'Redmine 任務總欄' if type == 1 else '任務進度變更進度表'}"
+            "title": f"發送報表 - {get_report_title(type)}"
         })
         
     except Exception as e:
@@ -545,7 +606,7 @@ async def authenticate_admin(
             "authenticated": False,
             "error": f"認證過程發生錯誤：{str(e)}",
             "current_date": datetime.now().strftime("%Y-%m-%d"),
-            "title": f"發送報表 - {'Redmine 任務總欄' if type == 1 else '任務進度變更進度表'}"
+            "title": f"發送報表 - {get_report_title(type)}"
         })
 
 @app.post("/send-email-execute", response_class=HTMLResponse)
@@ -586,6 +647,17 @@ async def execute_send_email(request: Request):
             result = await report_generator.generate_and_send_report1(recipients=recipients)
         elif report_type == 2:
             result = await report_generator.generate_and_send_report2(recipients=recipients)
+        elif report_type == 3:
+            result = await report_generator.generate_and_send_report3(recipients=recipients)
+        elif report_type == 5:
+            # Get additional parameters for Report 5
+            days = int(form_data.get("days", 14))
+            project_filter = form_data.get("project_filter", "").strip() or None
+            result = await report_generator.generate_and_send_report5(
+                recipients=recipients, 
+                days=days, 
+                project_filter=project_filter
+            )
         else:
             raise HTTPException(status_code=400, detail="無效的報表類型")
         
@@ -599,7 +671,7 @@ async def execute_send_email(request: Request):
             "users": users,
             "success": f"報表已成功發送給 {len(recipients)} 位收件者：{', '.join(recipients)}",
             "current_date": datetime.now().strftime("%Y-%m-%d"),
-            "title": f"發送報表 - {'Redmine 任務總欄' if report_type == 1 else '任務進度變更進度表'}"
+            "title": f"發送報表 - {get_report_title(report_type)}"
         })
         
     except Exception as e:
@@ -614,7 +686,7 @@ async def execute_send_email(request: Request):
             "users": users,
             "error": f"發送Email時發生錯誤：{str(e)}",
             "current_date": datetime.now().strftime("%Y-%m-%d"),
-            "title": f"發送報表 - {'Redmine 任務總欄' if report_type == 1 else '任務進度變更進度表'}"
+            "title": f"發送報表 - {get_report_title(report_type)}"
         })
 
 @app.get("/change-password", response_class=HTMLResponse)
