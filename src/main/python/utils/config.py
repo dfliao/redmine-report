@@ -51,6 +51,23 @@ class Settings(BaseSettings):
     # Scheduling Configuration
     SCHEDULE_CRON: str = os.getenv('SCHEDULE_CRON', '0 8 * * 1')  # Every Monday at 8:00 AM
     
+    # Synology DSM Configuration
+    SYNOLOGY_DSM_HOST: str = os.getenv('SYNOLOGY_DSM_HOST', 'localhost')
+    SYNOLOGY_DSM_PORT: int = int(os.getenv('SYNOLOGY_DSM_PORT', '5001'))
+    SYNOLOGY_DSM_ADMIN_USER: str = os.getenv('SYNOLOGY_DSM_ADMIN_USER', 'admin')
+    SYNOLOGY_DSM_ADMIN_PASS: str = os.getenv('SYNOLOGY_DSM_ADMIN_PASS', '')
+    
+    # LDAP Configuration
+    LDAP_HOST: str = os.getenv('LDAP_HOST', 'localhost')
+    LDAP_PORT: int = int(os.getenv('LDAP_PORT', '389'))
+    LDAP_ADMIN_DN: str = os.getenv('LDAP_ADMIN_DN', '')
+    LDAP_ADMIN_PASS: str = os.getenv('LDAP_ADMIN_PASS', '')
+    LDAP_BASE_DN: str = os.getenv('LDAP_BASE_DN', '')
+    LDAP_LOGIN_ATTR: str = os.getenv('LDAP_LOGIN_ATTR', 'uid')
+    
+    # Photo Service Configuration
+    PHOTO_BASE_PATH: str = os.getenv('PHOTO_BASE_PATH', '/volume4/photo/@@案場施工照片')
+    
     # Security Configuration
     DEBUG: bool = os.getenv('DEBUG', 'false').lower() == 'true'
     LOG_LEVEL: str = os.getenv('LOG_LEVEL', 'INFO')
