@@ -26,6 +26,11 @@
 - **網頁**: `/report4` 
 - **適用**: 線上查看專案時程
 
+### 報表五：近期施工照片
+- **內容**: 14天內施工照片記錄（只顯示有照片的專案）
+- **API**: `/send-email?report_type=5`
+- **適用**: 每日或每週追蹤施工現場狀況
+
 ## 🔧 排程設定方式
 
 ### 方式一：Synology DSM 任務排程器（推薦）
@@ -152,6 +157,21 @@ curl -X POST "http://localhost:3003/send-email?report_type=1&auto_send=true&days
 curl -X POST "http://localhost:3003/send-email?report_type=2&auto_send=true&days=14&tracker_filter=功能"
 ```
 
+#### 報表五（施工照片）專用參數：
+```bash
+# 基本照片報表（14天）
+curl -X POST "http://localhost:3003/send-email?report_type=5&auto_send=true&days=14"
+
+# 指定特定專案的照片
+curl -X POST "http://localhost:3003/send-email?report_type=5&auto_send=true&days=14&project_filter=金池三"
+
+# 短期照片報表（7天）
+curl -X POST "http://localhost:3003/send-email?report_type=5&auto_send=true&days=7"
+
+# 月度照片報表（30天）
+curl -X POST "http://localhost:3003/send-email?report_type=5&auto_send=true&days=30"
+```
+
 #### 自訂收件者：
 ```bash
 # 使用環境變數設定的收件者
@@ -179,6 +199,9 @@ curl -X POST "http://localhost:3003/send-email" \
 
 # 08:00 週一 - 報表三（週報）
 0 8 * * 1 curl -X POST "http://localhost:3003/send-email?report_type=3&auto_send=true&days=7"
+
+# 08:10 - 報表五（施工照片）
+10 8 * * * curl -X POST "http://localhost:3003/send-email?report_type=5&auto_send=true&days=14"
 ```
 
 ### 不同時間的報表：

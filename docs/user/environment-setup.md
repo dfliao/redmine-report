@@ -79,6 +79,42 @@ MEMORY_LIMIT=256M
 CPU_LIMIT=0.8
 
 # ================================
+# Synology LDAP Configuration
+# ================================
+LDAP_HOST=192.168.0.222
+LDAP_PORT=389
+LDAP_ADMIN_DN=uid=df.liao,cn=users,dc=nas,dc=gogopeaks,dc=com
+LDAP_ADMIN_PASS=your_ldap_admin_password_here
+LDAP_BASE_DN=dc=nas,dc=gogopeaks,dc=com
+LDAP_LOGIN_ATTR=uid
+
+# LDAP 連線設定
+LDAP_TIMEOUT=30
+LDAP_USE_TLS=false
+
+# ================================
+# Synology DSM API Configuration  
+# ================================
+SYNOLOGY_DSM_HOST=192.168.0.222
+SYNOLOGY_DSM_PORT=5001
+SYNOLOGY_DSM_ADMIN_USER=admin
+SYNOLOGY_DSM_ADMIN_PASS=your_synology_admin_password_here
+
+# DSM API 設定
+DSM_VERIFY_SSL=false
+DSM_TIMEOUT=30
+
+# ================================
+# Photo Service Configuration
+# ================================
+PHOTO_BASE_PATH=/volume4/photo/@@案場施工照片
+
+# 照片服務設定
+PHOTO_THUMBNAIL_SIZE=200x150
+PHOTO_MAX_COUNT=3
+PHOTO_SUPPORTED_FORMATS=jpg,jpeg,png,heic,heif,tiff,bmp
+
+# ================================
 # Security & Performance
 # ================================
 DEBUG=false
@@ -235,6 +271,55 @@ curl -H "X-Redmine-API-Key: YOUR_API_KEY" \
 - **SMTP 出站**: 埠 587 (或 25)
 - **Container 通訊**: Docker 內部網路
 - **n8n 存取**: 埠 8000 (API)
+- **LDAP 存取**: 埠 389 (LDAP)
+
+## 🔐 Synology LDAP 伺服器設定
+
+### LDAP 服務配置
+
+在 Synology DSM 中設定 LDAP 伺服器：
+
+1. **DSM 套件中心**: 安裝 "LDAP Server"
+2. **LDAP 伺服器設定**:
+   - Base DN: `dc=nas,dc=gogopeaks,dc=com`
+   - 管理員帳戶: `uid=df.liao,cn=users,dc=nas,dc=gogopeaks,dc=com`
+   - 啟用密碼變更功能
+
+3. **使用者帳戶**: 確保所有 Redmine 使用者在 LDAP 中存在
+
+### LDAP 管理員密碼設定
+
+**重要**: `LDAP_ADMIN_PASS` 必須設定，否則密碼變更功能無法使用
+
+```bash
+# 設定 LDAP 管理員密碼 (通常與 DSM 管理員密碼相同)
+LDAP_ADMIN_PASS=your_dsm_admin_password
+```
+
+### 測試 LDAP 連線
+
+```bash
+# 測試 LDAP 連線
+ldapsearch -x -h 192.168.0.222 -p 389 \
+    -D "uid=df.liao,cn=users,dc=nas,dc=gogopeaks,dc=com" \
+    -W -b "dc=nas,dc=gogopeaks,dc=com" \
+    "(objectClass=person)"
+```
+
+## 🔑 Synology DSM API 設定
+
+### DSM API 啟用
+
+1. **DSM 控制台** → **終端機與 SNMP**
+2. 啟用 **SSH 服務** (如需要)
+3. **DSM API**: 預設啟用於 5001 埠
+
+### 管理員帳戶設定
+
+確保 DSM 管理員帳戶具備：
+- ✅ 系統管理權限
+- ✅ LDAP 管理權限
+- ✅ 使用者管理權限
 
 ## 🚀 部署驗證清單
 
