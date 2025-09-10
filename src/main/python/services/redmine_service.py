@@ -39,40 +39,66 @@ class RedmineService:
         # Statuses that are aggregated into "進行中"
         self.active_statuses = ['執行中', '審核中', '修改中', '已完成(結案)']
         
-        # Excluded projects for reports 1 & 2 (including sub-projects)
-        # These projects are included ONLY in Report 3 (special projects)
-        self.excluded_project_names = ['專項用', '物流中心']  # Special projects and their sub-projects
+        # Special project configuration for Report 3
+        self.special_project_id = 'a55700'  # 專項用 project ID
+        self.special_project_ids = set()  # Will be populated with parent + sub-project IDs
+        
+        # Initialize special project IDs (parent + all sub-projects)
+        self._initialize_special_project_ids()
         
         logger.info(f"Initialized Redmine service for {settings.REDMINE_URL}")
+    
+    def _initialize_special_project_ids(self):
+        """Initialize special project IDs by querying Redmine for parent and sub-projects"""
+        try:
+            # Add the main special project ID
+            self.special_project_ids.add(self.special_project_id)
+            
+            # Query all projects to find sub-projects
+            all_projects = self.redmine.project.all()
+            
+            for project in all_projects:
+                # Check if this project is a sub-project of our special project
+                if hasattr(project, 'parent') and project.parent:
+                    parent_id = str(getattr(project.parent, 'id', ''))
+                    if parent_id == self.special_project_id:
+                        # This is a direct sub-project
+                        self.special_project_ids.add(str(project.id))
+                        logger.info(f"Found sub-project: {project.name} (ID: {project.id})")
+                
+                # Also check for nested sub-projects (sub-projects of sub-projects)
+                project_id = str(project.id)
+                if project_id in self.special_project_ids and hasattr(project, 'parent'):
+                    # This project is already in our special projects, check for its children
+                    for child_project in all_projects:
+                        if hasattr(child_project, 'parent') and child_project.parent:
+                            child_parent_id = str(getattr(child_project.parent, 'id', ''))
+                            if child_parent_id == project_id:
+                                self.special_project_ids.add(str(child_project.id))
+                                logger.info(f"Found nested sub-project: {child_project.name} (ID: {child_project.id})")
+            
+            logger.info(f"Special project IDs initialized: {self.special_project_ids}")
+            
+        except Exception as e:
+            logger.error(f"Error initializing special project IDs: {e}")
+            # Fallback to just the main project
+            self.special_project_ids = {self.special_project_id}
     
     def _should_exclude_issue(self, issue, for_special_project=False) -> bool:
         """Check if an issue should be excluded based on project"""
         try:
             if hasattr(issue, 'project'):
-                project_name = getattr(issue.project, 'name', '')
+                project_id = str(getattr(issue.project, 'id', ''))
                 
                 if for_special_project:
-                    # For special project reports (report 3), include ONLY 專項用 projects
-                    if project_name in self.excluded_project_names:
+                    # For special project reports (report 3), include ONLY special project family
+                    if project_id in self.special_project_ids:
                         return False  # Don't exclude - include this
-                    
-                    # Check if it's a sub-project of excluded projects
-                    if hasattr(issue.project, 'parent') and issue.project.parent:
-                        parent_name = getattr(issue.project.parent, 'name', '')
-                        if parent_name in self.excluded_project_names:
-                            return False  # Don't exclude - include this
-                    
-                    return True  # Exclude - not a special project
+                    return True  # Exclude - not in special project family
                 else:
-                    # For regular reports (1 & 2), exclude 專項用 projects
-                    if project_name in self.excluded_project_names:
+                    # For regular reports (1 & 2), exclude special project family
+                    if project_id in self.special_project_ids:
                         return True  # Exclude this
-                    
-                    # Check if it's a sub-project of excluded projects
-                    if hasattr(issue.project, 'parent') and issue.project.parent:
-                        parent_name = getattr(issue.project.parent, 'name', '')
-                        if parent_name in self.excluded_project_names:
-                            return True  # Exclude this
                             
             return False
         except Exception as e:
@@ -915,9 +941,10 @@ class RedmineService:
             
             for project in projects:
                 project_name = getattr(project, 'name', '')
+                project_id = str(getattr(project, 'id', ''))
                 
-                # Exclude 專項用 projects
-                if project_name in self.excluded_project_names:
+                # Exclude special projects (專項用 and its sub-projects) from gantt chart project list
+                if project_id in self.special_project_ids:
                     continue
                     
                 result.append({
