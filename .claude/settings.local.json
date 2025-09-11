@@ -8,7 +8,10 @@
       "Bash(git commit:*)",
       "Bash(python:*)",
       "Bash(docker-compose config:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(curl:*)",
+      "Bash(docker-compose:*)",
+      "Bash(ssh:*)"
     ],
     "deny": [],
     "ask": []
