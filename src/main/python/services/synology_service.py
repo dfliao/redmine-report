@@ -175,7 +175,9 @@ class SynologyService:
                 'account': self.dsm_admin_user,
                 'passwd': self.dsm_admin_pass,
                 'session': 'UserSettings',
-                'format': 'sid'
+                'format': 'sid',
+                'enable_syno_token': 'yes',
+                'enable_device_token': 'yes'
             }
             
             response = requests.post(auth_url, data=params, verify=False, timeout=10)
@@ -191,11 +193,20 @@ class SynologyService:
             else:
                 error_code = result.get('error', {}).get('code', 'unknown')
                 error_msg = self._get_dsm_error_message(error_code)
-                logger.error(f"DSM admin authentication failed: {error_msg}")
-                return {
-                    'success': False,
-                    'message': f'DSM管理員認證失敗: {error_msg}'
-                }
+                
+                # Special handling for 2FA errors
+                if error_code == 403 or error_code == 404:
+                    logger.warning(f"DSM admin authentication failed due to 2FA: {error_msg}")
+                    return {
+                        'success': False,
+                        'message': f'DSM管理員認證失敗: {error_msg} (建議關閉2FA或使用專用API用戶)'
+                    }
+                else:
+                    logger.error(f"DSM admin authentication failed: {error_msg}")
+                    return {
+                        'success': False,
+                        'message': f'DSM管理員認證失敗: {error_msg}'
+                    }
                 
         except Exception as e:
             logger.error(f"DSM admin authentication error: {e}")
