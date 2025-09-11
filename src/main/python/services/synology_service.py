@@ -21,19 +21,24 @@ class SynologyService:
     def __init__(self, settings):
         self.settings = settings
         
-        # Synology DSM settings
-        self.dsm_host = getattr(settings, 'SYNOLOGY_DSM_HOST', 'localhost')
-        self.dsm_port = getattr(settings, 'SYNOLOGY_DSM_PORT', 5001)
-        self.dsm_admin_user = getattr(settings, 'SYNOLOGY_DSM_ADMIN_USER', 'admin')
-        self.dsm_admin_pass = getattr(settings, 'SYNOLOGY_DSM_ADMIN_PASS', '')
+        # Synology DSM settings - use direct settings attributes
+        self.dsm_host = settings.SYNOLOGY_DSM_HOST
+        self.dsm_port = settings.SYNOLOGY_DSM_PORT
+        self.dsm_admin_user = settings.SYNOLOGY_DSM_ADMIN_USER
+        self.dsm_admin_pass = settings.SYNOLOGY_DSM_ADMIN_PASS
         
-        # LDAP settings
-        self.ldap_host = getattr(settings, 'LDAP_HOST', 'localhost')
-        self.ldap_port = getattr(settings, 'LDAP_PORT', 389)
-        self.ldap_admin_dn = getattr(settings, 'LDAP_ADMIN_DN', 'uid=df.liao,cn=users,dc=nas,dc=gogopeaks,dc=com')
-        self.ldap_admin_pass = getattr(settings, 'LDAP_ADMIN_PASS', '')
-        self.ldap_base_dn = getattr(settings, 'LDAP_BASE_DN', 'dc=nas,dc=gogopeaks,dc=com')
-        self.ldap_login_attr = getattr(settings, 'LDAP_LOGIN_ATTR', 'uid')
+        # LDAP settings - use direct settings attributes
+        self.ldap_host = settings.LDAP_HOST
+        self.ldap_port = settings.LDAP_PORT
+        self.ldap_admin_dn = settings.LDAP_ADMIN_DN
+        self.ldap_admin_pass = settings.LDAP_ADMIN_PASS
+        self.ldap_base_dn = settings.LDAP_BASE_DN
+        self.ldap_login_attr = settings.LDAP_LOGIN_ATTR
+        
+        # Debug logging to check if password is loaded
+        logger.info(f"LDAP Admin DN: {self.ldap_admin_dn}")
+        logger.info(f"LDAP Admin Pass loaded: {bool(self.ldap_admin_pass)}")
+        logger.info(f"LDAP Admin Pass length: {len(self.ldap_admin_pass) if self.ldap_admin_pass else 0}")
         
         # Session management
         self.dsm_session = None
