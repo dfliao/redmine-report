@@ -32,12 +32,12 @@ class RedmineService:
         
         # Define status order and aggregation logic
         self.status_order = [
-            '執行中', '審核中', '修改中', '已完成(結案)', 
-            '進行中', '擬定中', '暫停'
+            '擬定中', '執行中', '簽核中', '已完成(結案)', 
+            '撤回', '暫停', '取消'
         ]
         
-        # Statuses that are aggregated into "進行中"
-        self.active_statuses = ['執行中', '審核中', '修改中', '已完成(結案)']
+        # Statuses that are aggregated into "簽核中"
+        self.approval_statuses = ['簽核中', '審查中', '已審核', '已覆審(工廠)', '已覆審']
         
         # Special project configuration for Report 3
         self.special_project_id = 'a55700'  # 專項用 project ID
@@ -154,17 +154,17 @@ class RedmineService:
                 for status in self.status_order:
                     row[status] = 0
                 
-                # Calculate "進行中" aggregation
-                active_count = 0
+                # Calculate "簽核中" aggregation
+                approval_count = 0
                 for status_name, count in statuses.items():
-                    if status_name in self.active_statuses:
-                        active_count += count
-                        row[status_name] = count
+                    if status_name in self.approval_statuses:
+                        approval_count += count
+                        # Don't add individual approval statuses to display, only the aggregated one
                     elif status_name in self.status_order:
                         row[status_name] = count
                 
-                # Set the aggregated "進行中" count
-                row['進行中'] = active_count
+                # Set the aggregated "簽核中" count
+                row['簽核中'] = approval_count
                 
                 result.append(row)
             
@@ -707,7 +707,7 @@ class RedmineService:
     
     def get_status_aggregation_note(self) -> str:
         """Get the note explaining status aggregation logic"""
-        return "註：進行中為狀態「執行中、審核中、修改中、已完成(結案)」的加總"
+        return "註：簽核中為狀態「簽核中、審查中、已審核、已覆審(工廠)、已覆審」的加總"
     
     async def get_special_project_statistics(self, start_date: date, end_date: date) -> List[Dict]:
         """
@@ -758,17 +758,17 @@ class RedmineService:
                 for status in self.status_order:
                     row[status] = 0
                 
-                # Calculate "進行中" aggregation
-                active_count = 0
+                # Calculate "簽核中" aggregation
+                approval_count = 0
                 for status_name, count in statuses.items():
-                    if status_name in self.active_statuses:
-                        active_count += count
-                        row[status_name] = count
+                    if status_name in self.approval_statuses:
+                        approval_count += count
+                        # Don't add individual approval statuses to display, only the aggregated one
                     elif status_name in self.status_order:
                         row[status_name] = count
                 
-                # Set the aggregated "進行中" count
-                row['進行中'] = active_count
+                # Set the aggregated "簽核中" count
+                row['簽核中'] = approval_count
                 
                 result.append(row)
             
