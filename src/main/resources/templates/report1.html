@@ -103,10 +103,9 @@
                                     <th>被分派者</th>
                                     <th>擬定中</th>
                                     <th>執行中</th>
-                                    <th>待審核</th>
-                                    <th>修正中</th>
-                                    <th>已回應</th>
-                                    <th>已完成</th>
+                                    <th>簽核中</th>
+                                    <th>已完成(結案)</th>
+                                    <th>撤回</th>
                                     <th>暫停</th>
                                     <th>取消</th>
                                     <th>總計</th>
@@ -114,7 +113,7 @@
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td colspan="10" class="text-center">載入中...</td>
+                                    <td colspan="9" class="text-center">載入中...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -212,10 +211,10 @@
         // Update statistics table (Table 1)
         function updateTable1(data) {
             const tbody = document.querySelector('#statistics-table tbody');
-            const statuses = ['擬定中', '執行中', '待審核', '修正中', '已回應', '已完成', '暫停', '取消'];
+            const statuses = ['擬定中', '執行中', '簽核中', '已完成(結案)', '撤回', '暫停', '取消'];
             
             if (!data || data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" class="text-center">無資料</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8" class="text-center">無資料</td></tr>';
                 return;
             }
             
@@ -312,10 +311,9 @@
             const badgeClass = {
                 '擬定中': 'badge-secondary',
                 '執行中': 'badge-primary',
-                '待審核': 'badge-warning',
-                '修正中': 'badge-warning',
-                '已回應': 'badge-info',
-                '已完成': 'badge-success',
+                '簽核中': 'badge-warning',
+                '已完成(結案)': 'badge-success',
+                '撤回': 'badge-info',
                 '暫停': 'badge-secondary',
                 '取消': 'badge-error'
             }[status] || 'badge-secondary';
